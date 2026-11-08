@@ -1,0 +1,27 @@
+{
+  "name": "emlak-takip-web",
+  "version": "2.0.0",
+  "description": "Emlak Takip CRM & Portföy Yönetimi - PC ve Mobil Online Web Uygulaması",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node test/test_multitenant_security.js"
+  },
+  "keywords": [
+    "emlak",
+    "crm",
+    "real-estate",
+    "portfolio",
+    "matching-engine"
+  ],
+  "author": "Emlak Takip Ekibi",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "qrcode": "^1.5.4",
+    "uuid": "^10.0.0"
+  }
+}

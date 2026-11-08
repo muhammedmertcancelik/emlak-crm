@@ -1,0 +1,2987 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Emlak Takip CRM — Portföy, Müşteri ve Akıllı Eşleştirme</title>
+  <meta name="description" content="PC ve Mobilden kesintisiz çalışan, gayrimenkul portföy ve müşteri yönetim sistemi.">
+
+  <!-- PWA & Mobile Web App Meta -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Emlak CRM">
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- CSS Stylesheets -->
+  <link rel="stylesheet" href="./css/style.css?v=8">
+  <link rel="stylesheet" href="./css/responsive.css?v=8">
+
+  <style>
+    .selector-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: #FFFFFF;
+      margin-bottom: 8px;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+    }
+    .selector-item:hover {
+      background: var(--bg-secondary);
+      border-color: #D1D5DB;
+    }
+    .selector-item.active {
+      border-color: var(--btn-primary-bg);
+      background: #FFFFFF;
+      box-shadow: var(--shadow-md);
+    }
+    .selector-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--btn-primary-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #FFFFFF;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .selector-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .selector-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--heading-color);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .selector-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- File Protocol Uyarı Banner'ı (Kullanıcı çift tıklayıp dosya olarak açarsa uyarır) -->
+  <div id="file-protocol-banner" style="display:none; background: #DC2626; color: white; padding: 12px 18px; text-align: center; font-size: 13.5px; font-weight: 600; border-bottom: 1px solid #B91C1C; position: sticky; top: 0; z-index: 9999999;">
+    ⚠️ <span style="font-weight:800;">DİKKAT:</span> Sayfayı doğrudan klasörden (file:///) açtınız! Sistem yerel Node.js sunucusunda çalışmaktadır. Örnek hesapların ve CRM'in çalışabilmesi için lütfen tarayıcınızın adres çubuğuna <a href="http://localhost:3000" style="color: #fef08a; text-decoration: underline; font-weight: 800; font-size: 15px; margin: 0 6px;">http://localhost:3000</a> yazınız.
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
+       LANDING PAGE & AUTHENTICATION PORTAL (SaaS Karşılama Ekranı)
+       ══════════════════════════════════════════════════════════════ -->
+  <div id="landing-screen" class="landing-screen">
+    <!-- Sticky Glass Navbar -->
+    <header class="landing-navbar">
+      <div class="landing-nav-container">
+        <a href="#landing-screen" class="landing-brand">
+          <div class="landing-brand-icon">🏠</div>
+          <div class="landing-brand-text">
+            <h2>Emlak Takip <span class="badge-tenant">SaaS v2.0</span></h2>
+            <span>ÇOK ŞİRKETLİ CRM & B2B AĞ</span>
+          </div>
+        </a>
+
+        <nav class="landing-nav-links">
+          <a href="#section-features" class="landing-nav-link">Özellikler</a>
+          <a href="#section-b2b" class="landing-nav-link">B2B Ortak Havuz</a>
+          <a href="#section-security" class="landing-nav-link">KVKK & Güvenlik</a>
+        </nav>
+
+        <div class="landing-nav-actions">
+          <button type="button" class="btn btn-demo-glow" onclick="App.handleDemoLogin('comp-default-1', this)">
+            <span>⚡ Tek Tıkla Canlı Demo</span>
+          </button>
+          <button type="button" class="btn btn-outline" onclick="App.focusAuthPortal('login')">
+            <span>Giriş Yap</span>
+          </button>
+          <button type="button" class="btn btn-primary" onclick="App.focusAuthPortal('register')">
+            <span>Ücretsiz Kayıt Ol</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section with Dual Columns: Presentation & Auth Portal -->
+    <section class="landing-hero-section">
+      <div class="landing-container landing-hero-grid">
+        <!-- Left: Presentation Column -->
+        <div class="hero-left">
+          <div class="badge-pill">
+            <span class="pulsing-dot"></span>
+            <span>Yeni Nesil Çok Şirketli Emlak Ekosistemi</span>
+          </div>
+          <h1 class="hero-title">
+            Gayrimenkul Portföyünüzü ve Satışlarınızı Büyüten <span class="gradient-text">Modern B2B CRM</span>
+          </h1>
+          <p class="hero-description">
+            Emlak şirketiniz için tam veri izolasyonu, komisyon paylaşımlı B2B ortak ilan havuzu, akıllı müşteri eşleştirme ve KVKK uyumlu gizlilik kalkanı tek bir platformda.
+          </p>
+
+          <!-- Key highlights bullet badges -->
+          <div class="hero-highlights">
+            <div class="highlight-item">
+              <span class="hl-icon">✓</span>
+              <span>Her şirkete bağımsız ve izole çalışma alanı</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-icon">✓</span>
+              <span>%50 - %50 B2B komisyon paylaşımlı ortak ilan havuzu</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-icon">✓</span>
+              <span>Yapay zeka mantıklı otomatik bütçe & oda eşleştirme</span>
+            </div>
+            <div class="highlight-item">
+              <span class="hl-icon">✓</span>
+              <span>Sahada mobil (PWA) ve ofiste masaüstü kesintisiz erişim</span>
+            </div>
+          </div>
+
+          <!-- Hero Action Buttons -->
+          <div class="hero-cta-group">
+            <button type="button" class="btn btn-demo-hero" onclick="App.handleDemoLogin('comp-default-1', this)">
+              <div class="demo-icon-wrap">⚡</div>
+              <div style="text-align:left;">
+                <div style="font-weight:800; font-size:15px;">Tek Tıkla Canlı Demo İncele</div>
+                <div style="font-size:11px; opacity:0.85;">Şifresiz anında Örnek Emlak A.Ş. ile test edin</div>
+              </div>
+            </button>
+            <button type="button" class="btn btn-register-hero" onclick="App.focusAuthPortal('register')">
+              <span>🚀 Şirketinizi Kaydedin (Ücretsiz)</span>
+            </button>
+          </div>
+
+          <!-- Mini trust counters -->
+          <div class="hero-trust-bar">
+            <div class="trust-stat">
+              <strong>9+</strong>
+              <span>Canlı İlan</span>
+            </div>
+            <div class="trust-divider"></div>
+            <div class="trust-stat">
+              <strong>4+</strong>
+              <span>Kayıtlı Müşteri</span>
+            </div>
+            <div class="trust-divider"></div>
+            <div class="trust-stat">
+              <strong>%100</strong>
+              <span>KVKK Koruması</span>
+            </div>
+            <div class="trust-divider"></div>
+            <div class="trust-stat">
+              <strong>7/24</strong>
+              <span>Kesintisiz Senkron</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Modern Auth Portal (Login / Register Card) -->
+        <div class="hero-right" id="auth-portal-card">
+          <div class="auth-card">
+            <div class="auth-card-header">
+              <div class="auth-tab-selector">
+                <button type="button" class="auth-tab-switch active" id="portal-tab-login" onclick="App.switchAuthPortalTab('login')">
+                  <span>🔑 Giriş Yap</span>
+                </button>
+                <button type="button" class="auth-tab-switch" id="portal-tab-register" onclick="App.switchAuthPortalTab('register')">
+                  <span>🏢 Yeni Şirket Kaydı</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 1. GİRİŞ FORMU -->
+            <form id="portal-login-form" class="auth-form-panel" onsubmit="App.handleLandingLogin(event)">
+              <div class="auth-panel-heading">
+                <h3>Şirket Hesabınıza Giriş Yapın</h3>
+                <p>Emlak portföyünüze ve müşteri kayıtlarınıza erişin.</p>
+              </div>
+
+              <div class="form-group-custom">
+                <label for="p-login-email">İş E-posta Adresi *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">✉️</span>
+                  <input type="email" id="p-login-email" class="custom-input" placeholder="admin@emlaktakip.com" required autocomplete="email" />
+                </div>
+              </div>
+
+              <div class="form-group-custom">
+                <div class="label-row">
+                  <label for="p-login-password">Parola *</label>
+                  <button type="button" class="link-btn" onclick="App.openForgotPassModal()">Şifremi Unuttum?</button>
+                </div>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">🔒</span>
+                  <input type="password" id="p-login-password" class="custom-input" placeholder="••••••••" required autocomplete="current-password" />
+                  <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('p-login-password', this)" title="Şifreyi Göster/Gizle">👁️</button>
+                </div>
+              </div>
+
+              <div class="form-row-remember">
+                <label class="custom-checkbox-label">
+                  <input type="checkbox" id="p-login-remember" checked />
+                  <span class="checkbox-box"></span>
+                  <span>Beni Hatırla</span>
+                </label>
+              </div>
+
+              <button type="submit" class="btn-auth-submit" id="btn-portal-login">
+                <span>Giriş Yap</span>
+                <span class="btn-arrow">➔</span>
+              </button>
+
+              <div class="demo-cred-hint" style="margin-top:12px; padding:10px 12px; border-radius:var(--radius-sm); background:var(--bg-secondary); border:1px solid var(--border-color); display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <div style="font-size:11px; color:var(--text-secondary); line-height:1.4;">
+                  <strong style="color:var(--text-primary);">💡 Örnek Yönetici Girişi:</strong><br>
+                  <code>admin@emlaktakip.com</code> &nbsp;|&nbsp; Şifre: <code>admin123</code>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-size:10px; padding:4px 8px; white-space:nowrap;" onclick="App.fillDemoCredentials()">
+                  ✍️ Forma Yaz
+                </button>
+              </div>
+
+              <div class="auth-divider">
+                <span>VEYA ÖRNEK ŞİRKETLERLE ŞİFRESİZ DENEYİN</span>
+              </div>
+
+              <div class="demo-companies-list" style="display:flex; flex-direction:column; gap:8px;">
+                <button type="button" class="btn-demo-action" onclick="App.handleDemoLogin('comp-default-1', this)" id="btn-demo-ornek">
+                  <span class="demo-bolt">🏢</span>
+                  <div style="text-align:left; flex:1;">
+                    <div style="font-weight:700; font-size:12px;">Örnek Emlak Gayrimenkul A.Ş.</div>
+                    <div style="font-size:10px; opacity:0.8;">Merkez Ofis (9 İlan, 4 Müşteri, 4 Görev)</div>
+                  </div>
+                  <span style="font-size:11px; opacity:0.8;">Giriş ➔</span>
+                </button>
+
+                <button type="button" class="btn-demo-action" onclick="App.handleDemoLogin('bogazici', this)" id="btn-demo-bogazici">
+                  <span class="demo-bolt">🏛️</span>
+                  <div style="text-align:left; flex:1;">
+                    <div style="font-weight:700; font-size:12px;">Boğaziçi Gayrimenkul A.Ş.</div>
+                    <div style="font-size:10px; opacity:0.8;">B2B Ortak Ofis (İzole Şirket Alanı)</div>
+                  </div>
+                  <span style="font-size:11px; opacity:0.8;">Giriş ➔</span>
+                </button>
+
+                <button type="button" class="btn-demo-action" onclick="App.handleDemoLogin('anadolu', this)" id="btn-demo-anadolu">
+                  <span class="demo-bolt">🏠</span>
+                  <div style="text-align:left; flex:1;">
+                    <div style="font-weight:700; font-size:12px;">Anadolu Emlak Ltd.</div>
+                    <div style="font-size:10px; opacity:0.8;">B2B Ortak Ofis (İzole Şirket Alanı)</div>
+                  </div>
+                  <span style="font-size:11px; opacity:0.8;">Giriş ➔</span>
+                </button>
+              </div>
+
+              <div class="auth-bottom-switch">
+                Hesabınız yok mu? <a href="javascript:void(0)" onclick="App.switchAuthPortalTab('register')">Hemen Ücretsiz Kayıt Olun</a>
+              </div>
+            </form>
+
+            <!-- 2. KAYIT FORMU (TÜM GERÇEK SAAS ÖZELLİKLERİ) -->
+            <form id="portal-register-form" class="auth-form-panel" style="display:none;" onsubmit="App.handleLandingRegister(event)">
+              <div class="auth-panel-heading">
+                <h3>Emlak Şirketinizi Kaydedin</h3>
+                <p>30 saniyede ekibiniz ve ofisiniz için bağımsız alanınızı kurun.</p>
+              </div>
+
+              <div class="form-group-custom">
+                <label for="p-reg-fullname">Yetkili Adı Soyadı *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">👤</span>
+                  <input type="text" id="p-reg-fullname" class="custom-input" placeholder="Mehmet Kaya" required />
+                </div>
+              </div>
+
+              <div class="form-group-custom">
+                <label for="p-reg-company">Emlak Ofisi / Şirket Ünvanı *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">🏢</span>
+                  <input type="text" id="p-reg-company" class="custom-input" placeholder="Kaya Gayrimenkul Ltd." required />
+                </div>
+              </div>
+
+              <div class="form-row-dual">
+                <div class="form-group-custom">
+                  <label for="p-reg-email">İş E-postası *</label>
+                  <div class="input-icon-wrap">
+                    <span class="field-icon">✉️</span>
+                    <input type="email" id="p-reg-email" class="custom-input" placeholder="info@kayaemlak.com" required autocomplete="email" />
+                  </div>
+                </div>
+                <div class="form-group-custom">
+                  <label for="p-reg-phone">Telefon *</label>
+                  <div class="input-icon-wrap">
+                    <span class="field-icon">📞</span>
+                    <input type="tel" id="p-reg-phone" class="custom-input" placeholder="0532 123 45 67" required />
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group-custom">
+                <label for="p-reg-city">Faaliyet İli *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">📍</span>
+                  <select id="p-reg-city" class="custom-input">
+                    <option value="İstanbul" selected>İstanbul</option>
+                    <option value="Ankara">Ankara</option>
+                    <option value="İzmir">İzmir</option>
+                    <option value="Antalya">Antalya</option>
+                    <option value="Bursa">Bursa</option>
+                    <option value="Van">Van</option>
+                    <option value="Adana">Adana</option>
+                    <option value="Gaziantep">Gaziantep</option>
+                    <option value="Kocaeli">Kocaeli</option>
+                    <option value="Trabzon">Trabzon</option>
+                    <option value="Diğer">Diğer İl</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Güçlü Şifre Alanı -->
+              <div class="form-group-custom">
+                <label for="p-reg-password">Güvenli Parola Belirleyin *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">🔒</span>
+                  <input type="password" id="p-reg-password" class="custom-input" placeholder="En az 6 karakter, harf ve rakam" required minlength="6" oninput="App.checkPasswordStrength(this.value)" autocomplete="new-password" />
+                  <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('p-reg-password', this)" title="Şifreyi Göster/Gizle">👁️</button>
+                </div>
+                <!-- Canlı Şifre Gücü Çubuğu -->
+                <div class="pwd-strength-container">
+                  <div class="pwd-strength-track">
+                    <div id="pwd-strength-fill" class="pwd-strength-fill"></div>
+                  </div>
+                  <div class="pwd-strength-info">
+                    <span id="pwd-strength-label" class="pwd-label">Şifre Gücü: Zayıf</span>
+                    <div class="pwd-requirements">
+                      <span id="req-len" class="req-chip">6+ Karakter</span>
+                      <span id="req-mix" class="req-chip">Harf + Rakam</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Şifre Tekrarı -->
+              <div class="form-group-custom">
+                <label for="p-reg-password-confirm">Parola Tekrarı *</label>
+                <div class="input-icon-wrap">
+                  <span class="field-icon">🔒</span>
+                  <input type="password" id="p-reg-password-confirm" class="custom-input" placeholder="Parolanızı tekrar yazın" required minlength="6" oninput="App.checkPasswordMatch()" autocomplete="new-password" />
+                  <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('p-reg-password-confirm', this)" title="Şifreyi Göster/Gizle">👁️</button>
+                </div>
+                <div id="pwd-match-msg" class="pwd-match-text" style="display:none;"></div>
+              </div>
+
+              <!-- Hukuki Onaylar / KVKK -->
+              <div class="legal-agreements">
+                <label class="custom-checkbox-label">
+                  <input type="checkbox" id="p-reg-terms" required />
+                  <span class="checkbox-box"></span>
+                  <span class="checkbox-text">
+                    <a href="javascript:void(0)" onclick="App.openTermsModal()">Kullanıcı Sözleşmesi</a> ve B2B SaaS Şartları'nı okudum, kabul ediyorum.
+                  </span>
+                </label>
+                <label class="custom-checkbox-label" style="margin-top:8px;">
+                  <input type="checkbox" id="p-reg-kvkk" required />
+                  <span class="checkbox-box"></span>
+                  <span class="checkbox-text">
+                    <a href="javascript:void(0)" onclick="App.openKVKKModal()">KVKK Aydınlatma Metni</a> kapsamında kişisel veri işlenmesini onaylıyorum.
+                  </span>
+                </label>
+              </div>
+
+              <button type="submit" class="btn-auth-submit" id="btn-portal-register">
+                <span>Şirketimi Oluştur ve Başla</span>
+                <span class="btn-arrow">➔</span>
+              </button>
+
+              <div class="auth-bottom-switch">
+                Zaten kayıtlı bir şirketiniz var mı? <a href="javascript:void(0)" onclick="App.switchAuthPortalTab('login')">Giriş Yapın</a>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: SaaS Features Showcase -->
+    <section class="landing-section" id="section-features">
+      <div class="landing-container">
+        <div class="section-header-center">
+          <span class="section-tag">SAAS AVANTAJLARI</span>
+          <h2>Emlak Ofisinizi Geleceğe Taşıyacak Güçlü Özellikler</h2>
+          <p>Tüm emlak süreçlerinizi merkezileştirin, ekibinizi yönetin ve satışlarınızı katlayın.</p>
+        </div>
+
+        <div class="features-showcase-grid">
+          <div class="feature-box">
+            <div class="feature-box-icon">🏢</div>
+            <h3>Çok Şirketli (Multi-Tenant) İzolasyon</h3>
+            <p>Her emlak ofisinin ilanları, müşterileri ve şirket içi özel notları kendi güvenli veri alanında tutulur. Diğer şirketler asla erişemez.</p>
+          </div>
+
+          <div class="feature-box">
+            <div class="feature-box-icon">🌐</div>
+            <h3>B2B Ortak İlan & Müşteri Pazarı</h3>
+            <p>Portföyünüzü ağdaki diğer emlakçılarla komisyon paylaşımlı (%50-%50) paylaşın veya başka şirketlerin portföylerindeki alıcı fırsatlarını yakalayın.</p>
+          </div>
+
+          <div class="feature-box">
+            <div class="feature-box-icon">✨</div>
+            <h3>Akıllı Algoritmik Eşleştirme Motoru</h3>
+            <p>Müşterinin bütçesi, aradığı oda tipi (1+1, 2+1, 3+1), semt ve m² kriterlerini otomatik analiz eden yapay zeka puanlama robotu.</p>
+          </div>
+
+          <div class="feature-box">
+            <div class="feature-box-icon">🛡️</div>
+            <h3>KVKK Uyumlu Veri Maskeleme</h3>
+            <p>Ortak havuza açılan müşteri taleplerinde telefon ve e-posta otomatik gizlenir. Müşteri çalınma riski olmadan güvenle ortak iş yapın.</p>
+          </div>
+
+          <div class="feature-box">
+            <div class="feature-box-icon">📱</div>
+            <h3>Sahada ve Ofiste Kesintisiz Mobil (PWA)</h3>
+            <p>Telefonunuzdan sahada gezerken hızlıca ilan ekleyin, yer gösterme randevusu planlayın ve masaüstü bilgisayarınızla anında senkronize olun.</p>
+          </div>
+
+          <div class="feature-box">
+            <div class="feature-box-icon">⏰</div>
+            <h3>Randevu, Ziyaret ve Hatırlatıcı Ajandası</h3>
+            <p>Geri arama, anahtar teslimi ve kapora tarihlerini asla unutmayın. Günlük öncelikli görevler listenizi akıllı dashboard'da görün.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: B2B Network Showcase -->
+    <section class="landing-section landing-section-darker" id="section-b2b">
+      <div class="landing-container">
+        <div class="b2b-banner-box">
+          <div class="b2b-banner-content">
+            <span class="section-tag">B2B İŞ BİRLİĞİ</span>
+            <h2>Tek Başına Değil, Güçlü Bir Emlak Ağıyla Satış Yapın</h2>
+            <p>
+              Elindeki daireyi satacak alıcı bulamıyor musun? Ya da müşterinin aradığı lüks villa senin portföyünde yok mu?
+              B2B Ortak Havuz ile tek tıkla ağdaki partner emlak şirketleriyle komisyon paylaşımı yaparak anlaşmayı hemen bağlayın.
+            </p>
+            <div class="b2b-steps-inline">
+              <div class="b2b-step">
+                <div class="b2b-step-num">1</div>
+                <div><strong>İlanını Paylaş:</strong> Tek tıkla komisyon oranını (%50-%50) belirleyip havuza aç.</div>
+              </div>
+              <div class="b2b-step">
+                <div class="b2b-step-num">2</div>
+                <div><strong>Eşleşen Müşteriyi Gör:</strong> Ağdaki emlakçıların uygun alıcı talepleriyle otomatik eşleş.</div>
+              </div>
+              <div class="b2b-step">
+                <div class="b2b-step-num">3</div>
+                <div><strong>Komisyonu Bölüşün:</strong> Satışı kapatın, komisyonu adilce paylaşın.</div>
+              </div>
+            </div>
+            <div style="margin-top:24px;">
+              <button type="button" class="btn btn-demo-glow" onclick="App.handleDemoLogin('comp-default-1', this)">
+                <span>⚡ Örnek Şirket ile Havuzu İncele</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Security & KVKK -->
+    <section class="landing-section" id="section-security">
+      <div class="landing-container">
+        <div class="section-header-center">
+          <span class="section-tag">GÜVENLİK STANDARTLARI</span>
+          <h2>Verileriniz Askeri Düzeyde Koruma Altında</h2>
+          <p>Multi-tenant veri izolasyonu ve gelişmiş şifreleme ile portföyünüz tamamen güvende.</p>
+        </div>
+
+        <div class="security-grid">
+          <div class="sec-card">
+            <div class="sec-icon">🔒</div>
+            <h4>Salted Scrypt Şifreleme</h4>
+            <p>Tüm kullanıcı parolaları düz metin değil, 32-byte kriptografik tuz (salt) ve scrypt algoritmasıyla şifrelenir.</p>
+          </div>
+          <div class="sec-card">
+            <div class="sec-icon">🛡️</div>
+            <h4>BOLA / IDOR İzolasyonu</h4>
+            <p>Her API isteği şirketin kimlik yetkisiyle filtrelenir; bir şirket başka bir şirketin özel verisini asla okuyamaz.</p>
+          </div>
+          <div class="sec-card">
+            <div class="sec-icon">📦</div>
+            <h4>Şirket Bazlı Güvenli Yedekleme</h4>
+            <p>Sistem yedekleri sadece şirketin kendi kayıtlarını kapsayacak şekilde dışa aktarılır, tam veri egemenliği sağlanır.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Landing Footer -->
+    <footer class="landing-footer">
+      <div class="landing-container footer-flex">
+        <div class="footer-left">
+          <div class="landing-brand">
+            <span class="landing-brand-icon">🏠</span>
+            <span style="font-weight:800; font-size:16px;">Emlak Takip CRM SaaS</span>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">
+            Gayrimenkul profesyonelleri için çok şirketli portföy, müşteri ve B2B ortak pazaryeri platformu.
+          </p>
+        </div>
+        <div class="footer-links">
+          <a href="javascript:void(0)" onclick="App.openTermsModal()">Kullanıcı Sözleşmesi</a>
+          <a href="javascript:void(0)" onclick="App.openKVKKModal()">KVKK Aydınlatma Metni</a>
+          <a href="javascript:void(0)" onclick="App.openForgotPassModal()">Destek & İletişim</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="landing-container" style="font-size:11px; color:var(--text-muted); text-align:center;">
+          © 2026 Emlak Takip CRM SaaS Platformu. Tüm hakları saklıdır.
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <div class="app-container" id="app-container" style="display: none;">
+
+    <!-- ═══════════════════════════════════════════════════════════
+         MICROSOFT / APPLE STYLE APP LAUNCHER MODAL (SAYFALAR POPUP)
+         ═══════════════════════════════════════════════════════════ -->
+    <div class="modal-backdrop" id="modal-page-launcher" onclick="if(event.target===this) App.closeNavLauncher()">
+      <div class="launcher-modal">
+        <div class="launcher-header">
+          <div class="launcher-header-title">
+            <div class="launcher-header-icon">▦</div>
+            <div>
+              <h3>Payidar Emlak — Sayfalar & Modüller</h3>
+              <p>Çalışmak istediğiniz yönetim modülünü veya sayfayı seçin</p>
+            </div>
+          </div>
+          <button type="button" class="btn-close-modal" onclick="App.closeNavLauncher()" title="Kapat (Esc)">✕</button>
+        </div>
+
+        <div class="launcher-search-row">
+          <span style="font-size:14px; opacity:0.6;">🔍</span>
+          <input type="text" id="launcher-filter-input" placeholder="Modül veya sayfa adı ara (örn: portföy, crm, ajanda)..." oninput="App.filterLauncherGrid(this.value)">
+        </div>
+
+        <div class="launcher-grid" id="launcher-cards-grid">
+          <!-- 1. Genel Bakış -->
+          <div class="launcher-card nav-item" data-tab="dashboard" onclick="App.showTab('dashboard'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">📊</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Genel Bakış</span>
+                <span class="launcher-pill">Dashboard</span>
+              </div>
+              <p class="launcher-card-desc">Günlük özet, haftalık KPI göstergeleri, son eklenen portföyler ve acil takip görevleri.</p>
+            </div>
+          </div>
+
+          <!-- 2. Profilim & Masam -->
+          <div class="launcher-card nav-item" data-tab="profile" onclick="App.showTab('profile'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">👤</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Profilim & Masam</span>
+                <span class="nav-badge" id="badge-my-portfolio-count">0</span>
+              </div>
+              <p class="launcher-card-desc">Danışman çalışma masanız, şahsi portföyünüz, kendi müşterileriniz ve kişisel randevularınız.</p>
+            </div>
+          </div>
+
+          <!-- 3. Portföy / İlanlar -->
+          <div class="launcher-card nav-item" data-tab="properties" onclick="App.showTab('properties'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">🏢</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Portföy / İlanlar</span>
+                <span class="nav-badge" id="badge-prop-count">0</span>
+              </div>
+              <p class="launcher-card-desc">Satılık ve kiralık gayrimenkuller, vitrin ilanları, oda ve fiyat filtreleme motoru.</p>
+            </div>
+          </div>
+
+          <!-- 4. Müşteri CRM -->
+          <div class="launcher-card nav-item" data-tab="customers" onclick="App.showTab('customers'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">👥</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Müşteri CRM</span>
+                <span class="nav-badge" id="badge-cust-count">0</span>
+              </div>
+              <p class="launcher-card-desc">Alıcı ve kiracı talepleri, bütçe aralıkları, müşteri öncelik sınıfları (A-B-C-D) ve kartlar.</p>
+            </div>
+          </div>
+
+          <!-- 5. Ortak Havuz (B2B) -->
+          <div class="launcher-card nav-item" data-tab="pool" onclick="App.showTab('pool'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">🌐</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Ortak Havuz (B2B)</span>
+                <span class="badge badge-sale" id="badge-pool-count">0</span>
+              </div>
+              <p class="launcher-card-desc">Diğer emlak şirketleriyle ve danışmanlarla paylaşımlı gayrimenkul ve müşteri portalları.</p>
+            </div>
+          </div>
+
+          <!-- 6. Akıllı Eşleştirme -->
+          <div class="launcher-card nav-item" data-tab="matching" onclick="App.showTab('matching'); App.closeNavLauncher();">
+            <div class="launcher-card-icon" style="color:var(--accent-emerald);">✨</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Akıllı Eşleştirme</span>
+                <span class="badge badge-sale" style="background:#16A085; color:#fff;">CANLI</span>
+              </div>
+              <p class="launcher-card-desc">Müşteri bütçesi ve oda tipine göre en uygun portföyleri anında yüzde uyumu ile eşleştirir.</p>
+            </div>
+          </div>
+
+          <!-- 7. Takip & Ajanda -->
+          <div class="launcher-card nav-item" data-tab="followups" onclick="App.showTab('followups'); App.closeNavLauncher();">
+            <div class="launcher-card-icon" style="color:var(--accent-rose);">⏰</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Takip & Ajanda</span>
+                <span class="nav-badge" id="badge-followup-count" style="color:var(--accent-rose);">0</span>
+              </div>
+              <p class="launcher-card-desc">Müşteri yer gösterme randevuları, geri arama görevleri ve planlanmış görüşmeler.</p>
+            </div>
+          </div>
+
+          <!-- 8. Şirket & Ekip -->
+          <div class="launcher-card nav-item" data-tab="company" onclick="App.showTab('company'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">🏛️</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Şirket & Ekip</span>
+                <span class="launcher-pill">Ofis</span>
+              </div>
+              <p class="launcher-card-desc">Ofis profili, danışman davetleri, departman yetkileri ve komisyon paylaşım oranları.</p>
+            </div>
+          </div>
+
+          <!-- 9. Ağ & Yedekleme -->
+          <div class="launcher-card nav-item" data-tab="settings" onclick="App.showTab('settings'); App.closeNavLauncher();">
+            <div class="launcher-card-icon">⚙️</div>
+            <div class="launcher-card-content">
+              <div class="launcher-card-top">
+                <span class="launcher-card-title">Ağ & Yedekleme</span>
+                <span class="launcher-pill">Sistem</span>
+              </div>
+              <p class="launcher-card-desc">Veritabanı yedekleme, JSON içe/dışa aktarma ve mobil yerel ağ senkronizasyon ayarları.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="launcher-footer">
+          <div class="network-badge" id="network-status-badge" onclick="App.showTab('settings'); App.closeNavLauncher();" title="Telefondan erişim adresini gör" style="cursor:pointer;">
+            <span class="status-dot"></span>
+            <span>Sistem Çevrimiçi / Online (Yerel Ağ Paylaşımı Aktif)</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-secondary);">
+            Kısayol: <kbd style="background:#F3F4F6; border:1px solid #E5E7EB; padding:2px 6px; border-radius:4px; font-size:11px;">Esc</kbd> ile kapat
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── MAIN CONTENT WRAPPER ───────────────────────────── -->
+    <div class="main-wrapper">
+      <!-- Topbar (Apple / Microsoft / Acer Clean Top Navigation) -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <!-- Corporate Brand Monogram -->
+          <div class="header-brand" onclick="App.showTab('dashboard')" style="cursor:pointer;" title="Payidar Emlak - Ana Sayfa">
+            <div class="brand-icon">🏠</div>
+            <div class="brand-text">
+              <h1>Payidar Emlak</h1>
+              <span>PORTFÖY & CRM</span>
+            </div>
+          </div>
+
+          <!-- Microsoft / Apple Style App Launcher Button (Sayfalar Popup) -->
+          <button type="button" class="btn-launcher" id="btn-page-launcher" onclick="App.toggleNavLauncher()" title="Tüm Sayfalar ve Modüller Menüsü (Kısayol: M)">
+            <span class="launcher-waffle-icon">▦</span>
+            <span class="launcher-btn-text">Sayfalar</span>
+            <span class="launcher-btn-arrow">▾</span>
+          </button>
+
+          <!-- Quick Navigation Links (Apple Clean Segmented Navigation) -->
+          <nav class="topbar-nav-links" id="topbar-nav-links">
+            <button type="button" class="topbar-nav-link nav-item active" data-tab="dashboard" onclick="App.showTab('dashboard')">
+              <span>Genel Bakış</span>
+            </button>
+            <button type="button" class="topbar-nav-link nav-item" data-tab="properties" onclick="App.showTab('properties')">
+              <span>Portföy</span>
+            </button>
+            <button type="button" class="topbar-nav-link nav-item" data-tab="customers" onclick="App.showTab('customers')">
+              <span>Müşteriler</span>
+            </button>
+            <button type="button" class="topbar-nav-link nav-item" data-tab="matching" onclick="App.showTab('matching')">
+              <span>✨ Eşleştirme</span>
+            </button>
+            <button type="button" class="topbar-nav-link nav-item" data-tab="followups" onclick="App.showTab('followups')">
+              <span>⏰ Takip</span>
+            </button>
+            <button type="button" class="topbar-nav-link nav-item" data-tab="pool" onclick="App.showTab('pool')">
+              <span>🌐 Havuz</span>
+            </button>
+          </nav>
+        </div>
+
+        <div class="topbar-right">
+          <!-- Quick Global Search Input -->
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="global-search-input" placeholder="İlan, ilçe veya oda ara..." autocomplete="off">
+          </div>
+
+          <!-- Şirket Seçici Rozeti -->
+          <div class="company-badge-wrap" id="company-badge-wrap" onclick="App.openCompanySwitcherModal()" title="Aktif Şirketi Değiştir" style="cursor:pointer;">
+            <span class="comp-icon">🏢</span>
+            <span id="topbar-company-name">Şirket Yükleniyor...</span>
+            <span style="font-size:10px; opacity:0.6;">▼</span>
+          </div>
+
+          <!-- Kullanıcı Profili -->
+          <div class="user-profile-badge" id="user-profile-badge" onclick="App.showTab('profile')" style="cursor:pointer;" title="Danışman Çalışma Masası & Profilim">
+            <div class="user-avatar-dot" id="topbar-user-avatar">👤</div>
+            <div style="display:flex; flex-direction:column; align-items:flex-start; line-height:1.2;">
+              <span id="topbar-user-name" style="font-weight:700; font-size:13px;">Giriş Yap</span>
+              <span id="topbar-user-role-badge" class="badge badge-role-agent" style="font-size:10px; padding:2px 7px; border-radius:4px; margin-top:2px; font-weight:800;">DANIŞMAN</span>
+            </div>
+          </div>
+
+          <!-- Primary Action: İlan Ekle -->
+          <button class="btn btn-primary" onclick="App.openCreatePropertyModal()" title="Yeni Portföy / İlan Ekle">
+            <span>+</span> <span>İlan Ekle</span>
+          </button>
+
+          <!-- Çıkış Yap Butonu -->
+          <button type="button" class="btn btn-secondary" onclick="App.handleLogout()" title="Oturumu Kapat ve Çıkış Yap" style="padding: 7px 11px; font-size:12px;">
+            <span>🚪</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Main Body Content -->
+      <main class="content">
+
+        <!-- Top Page Title Header Strip -->
+        <div class="page-head-strip">
+          <div class="page-title-wrap">
+            <h2 id="page-title">Genel Bakış</h2>
+            <p id="page-subtitle">Portföy, Müşteri ve Günlük Takip Durumu</p>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             0. DANIŞMAN PROFİLİ & ÖZEL ÇALIŞMA MASASI TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-profile" style="display:none;">
+          <!-- Profil Üst Kartı (Hero) -->
+          <div class="profile-hero-card">
+            <div class="profile-hero-main">
+              <div class="profile-avatar-large" id="profile-card-avatar">👤</div>
+              <div class="profile-user-info">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <h3 id="profile-card-name" style="font-size:22px; font-weight:800; margin:0;">Danışman Adı</h3>
+                  <span id="profile-card-role-badge" class="badge badge-role-agent">👔 DANIŞMAN</span>
+                </div>
+                <div style="font-size:13px; color:var(--text-muted); margin-top:4px;" id="profile-card-meta">
+                  ✉️ <span id="profile-card-email">email@test.com</span> • 📱 <span id="profile-card-phone">—</span>
+                </div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-top:6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span>🏢 <strong style="color:var(--accent-emerald);" id="profile-card-company">Örnek Emlak A.Ş.</strong></span>
+                  <span style="opacity:0.4;">|</span>
+                  <span id="profile-card-department-badge" class="badge badge-sale" style="font-size:11px; padding:2px 8px;">🏛️ Genel Portföy</span>
+                  <span style="opacity:0.4;">|</span>
+                  <span>📍 <span id="profile-card-city">Van / Türkiye</span></span>
+                </div>
+              </div>
+            </div>
+            <div class="profile-hero-actions">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.openChangePasswordModal()">
+                🔒 Şifre Değiştir
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="App.openQuickAddModal()">
+                + Hızlı Ekle
+              </button>
+            </div>
+          </div>
+
+          <!-- Danışman Kişisel KPI Kartları -->
+          <div class="stats-grid" id="profile-stats-grid" style="margin-bottom:24px;">
+            <!-- Dinamik doldurulacak: Portföyüm, Müşterilerim, Havuz Paylaşımlarım, Takiplerim -->
+          </div>
+
+          <!-- Profil İçi Sekmeler (Sub-tabs) -->
+          <div class="profile-tabs-nav" style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:10px; overflow-x:auto;">
+            <button type="button" class="tab-btn profile-subtab-btn active" data-subtab="properties" onclick="App.setProfileSubTab('properties')">
+              🏠 Kendi Portföyüm (<span id="profile-prop-count">0</span>)
+            </button>
+            <button type="button" class="tab-btn profile-subtab-btn" data-subtab="customers" onclick="App.setProfileSubTab('customers')">
+              👥 Kendi Müşterilerim (<span id="profile-cust-count">0</span>)
+            </button>
+            <button type="button" class="tab-btn profile-subtab-btn" data-subtab="pool" onclick="App.setProfileSubTab('pool')">
+              🌐 B2B Havuz Paylaşımlarım (<span id="profile-pool-count">0</span>)
+            </button>
+            <button type="button" class="tab-btn profile-subtab-btn" data-subtab="followups" onclick="App.setProfileSubTab('followups')">
+              ⏰ Randevu & Takiplerim (<span id="profile-followup-count">0</span>)
+            </button>
+          </div>
+
+          <!-- Subtab 1: Kendi Portföyüm -->
+          <div id="profile-properties-view">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="profile-prop-search" class="form-control" placeholder="Kendi ilanlarınızda arayın..." style="width:240px; font-size:12px; padding:6px 12px;" oninput="App.onProfileSearch('prop', this.value)">
+                <select class="form-control" id="profile-prop-status-filter" style="width:auto; font-size:12px; padding:6px 12px;" onchange="App.onProfileFilterStatus(this.value)">
+                  <option value="">Tüm Durumlar</option>
+                  <option value="satilik">Satılık</option>
+                  <option value="kiralik">Kiralık</option>
+                </select>
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="App.openCreatePropertyModal()">
+                + Yeni İlan Ekle
+              </button>
+            </div>
+            <div class="property-grid" id="profile-properties-grid">
+              <!-- Sadece bu danışmanın ilanları -->
+            </div>
+          </div>
+
+          <!-- Subtab 2: Kendi Müşterilerim -->
+          <div id="profile-customers-view" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+              <input type="text" id="profile-cust-search" class="form-control" placeholder="Kendi müşterilerinizde arayın..." style="width:260px; font-size:12px; padding:6px 12px;" oninput="App.onProfileSearch('cust', this.value)">
+              <button class="btn btn-primary btn-sm" onclick="App.openCreateCustomerModal()">
+                + Yeni Müşteri Ekle
+              </button>
+            </div>
+            <div class="customer-grid" id="profile-customers-grid">
+              <!-- Sadece bu danışmanın müşterileri -->
+            </div>
+          </div>
+
+          <!-- Subtab 3: B2B Havuz Paylaşımlarım -->
+          <div id="profile-pool-view" style="display:none;">
+            <div style="background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:14px 18px; margin-bottom:16px; font-size:12.5px; color:var(--text-secondary); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+              <div>
+                🌐 <strong>B2B Ortak Havuz Katkınız:</strong> Burada havuza açtığınız ilanlar ve alıcı talepleri listelenir. Diğer ofisler portföyünüzü görerek sizinle iletişime geçer.
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="App.showTab('pool')">
+                Ortak Havuz Pazarını Aç ➔
+              </button>
+            </div>
+            <div class="property-grid" id="profile-pool-grid">
+              <!-- Havuzdaki ilan ve müşteriler -->
+            </div>
+          </div>
+
+          <!-- Subtab 4: Randevu & Takiplerim -->
+          <div id="profile-followups-view" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+              <div style="font-size:13px; color:var(--text-muted);">Size atanan yer gösterme, arama ve randevular</div>
+              <button class="btn btn-primary btn-sm" onclick="App.openCreateFollowUpModal()">
+                + Yeni Takip Planla
+              </button>
+            </div>
+            <div class="followup-list" id="profile-followups-list">
+              <!-- Sadece bu danışmanın görevleri -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             1. DASHBOARD TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-dashboard">
+          <!-- Hero Matching Banner -->
+          <div class="hero-banner" onclick="App.showTab('matching')">
+            <div class="hero-banner-content">
+              <div class="hero-icon-wrap">✨</div>
+              <div class="hero-text">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h3>Akıllı Portföy & Müşteri Eşleştirme Motoru</h3>
+                  <span class="hero-badge">Oda Tipi & Bütçe Analizi</span>
+                </div>
+                <p>Müşteri bütçesi, oda tipi (1+1, 2+1, 3+1), semt, m² ve yatırım getirisine göre en uygun portföyleri anında puanlayın.</p>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="event.stopPropagation(); App.showTab('matching')">
+              Eşleştirmeleri İncele ➔
+            </button>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="stats-grid" id="dashboard-stats-grid">
+            <!-- Dinamik doldurulacak -->
+          </div>
+
+          <!-- Payidar Haftalık Performans Paneli (Cuma Toplantısı Göstergeleri) -->
+          <div id="dashboard-payidar-kpis" style="margin-bottom: 28px;">
+            <!-- Dinamik doldurulacak -->
+          </div>
+
+          <!-- Today's Follow-ups -->
+          <div style="margin-bottom: 28px;">
+            <div class="section-header">
+              <h3>
+                <span>⏰ Bugünkü Takipler ve Randevular</span>
+              </h3>
+              <button class="btn btn-secondary btn-sm" onclick="App.showTab('followups')">Tümünü Gör ➔</button>
+            </div>
+            <div class="followup-list" id="dashboard-today-followups">
+              <!-- Dinamik doldurulacak -->
+            </div>
+          </div>
+
+          <!-- Recent Properties -->
+          <div>
+            <div class="section-header">
+              <h3>
+                <span>🏢 Son Eklenen Portföyler</span>
+              </h3>
+              <button class="btn btn-secondary btn-sm" onclick="App.showTab('properties')">Tüm Portföyü Gör ➔</button>
+            </div>
+            <div class="property-grid" id="dashboard-recent-properties">
+              <!-- Dinamik doldurulacak -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             2. PROPERTIES TAB (DETAYLI FİLTRELEME SİSTEMİ)
+             ══════════════════════════════════════════════════════ -->
+        <!-- ══════════════════════════════════════════════════════
+             2. PROPERTIES TAB (SAHİBİNDEN TARZI DETAYLI FİLTRELEME & PORTAL)
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-properties" style="display:none;">
+          <div class="portal-layout">
+            <div class="filter-drawer-backdrop" id="filter-drawer-backdrop" onclick="App.closeFilterSidebar()"></div>
+
+            <!-- ── DETAYLI FİLTRELEME ÇEKMECESİ / POPUP (PORTAL FILTER DRAWER) ── -->
+            <aside class="portal-filter-sidebar" id="portal-filter-sidebar">
+              <div class="filter-sidebar-header">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span>⚡</span>
+                  <h3>Detaylı Filtreler</h3>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <button type="button" class="filter-clear-link" onclick="App.resetAdvancedFilters()" title="Tüm filtreleri temizle">Temizle</button>
+                  <button type="button" class="drawer-close-btn" onclick="App.closeFilterSidebar()" title="Kapat (Esc)">✕</button>
+                </div>
+              </div>
+
+              <div class="filter-sidebar-scroll">
+                <!-- 0. Departman Filtresi -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏛️ Departman / Birim</span>
+                  </div>
+                  <select class="form-control" id="adv-filter-department" onchange="App.onFilterChange()">
+                    <option value="">Tüm Departmanlar</option>
+                  </select>
+                </div>
+
+                <!-- 1. Adres (İl, İlçe, Semt/Mahalle) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>📍 Adres</span>
+                    <span class="location-badge-pill">⭐ Van & Türkiye</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <select class="form-control" id="adv-filter-city" onchange="App.onCityFilterChange()">
+                      <!-- Locations.js ile dinamik doldurulacak -->
+                      <option value="">İl (Tümü)</option>
+                      <option value="Van" selected>⭐ Van (Tüm İlçeler)</option>
+                      <option value="İstanbul">İstanbul</option>
+                      <option value="Ankara">Ankara</option>
+                      <option value="İzmir">İzmir</option>
+                      <option value="Bursa">Bursa</option>
+                      <option value="Antalya">Antalya</option>
+                    </select>
+                    <select class="form-control" id="adv-filter-district" onchange="App.onDistrictFilterChange()">
+                      <option value="">İlçe (Tümü)</option>
+                    </select>
+                    <div style="position:relative;">
+                      <input type="text" class="form-control" id="adv-filter-neighborhood" list="adv-filter-neighborhood-datalist" placeholder="Semt / Mahalle (Manuel Yazın)" oninput="App.onFilterInput()">
+                      <datalist id="adv-filter-neighborhood-datalist"></datalist>
+                    </div>
+                    <div id="adv-filter-neighborhood-chips"></div>
+                  </div>
+                </div>
+
+                <!-- 2. İlan Durumu (Satılık / Kiralık) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏷️ İlan Durumu</span>
+                  </div>
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="currency-btn btn-status-pill active" data-status="" onclick="App.setFilterStatus('', this)" style="flex:1;">Tümü</button>
+                    <button type="button" class="currency-btn btn-status-pill" data-status="satilik" onclick="App.setFilterStatus('satilik', this)" style="flex:1;">Satılık</button>
+                    <button type="button" class="currency-btn btn-status-pill" data-status="kiralik" onclick="App.setFilterStatus('kiralik', this)" style="flex:1;">Kiralık</button>
+                  </div>
+                </div>
+
+                <!-- 3. Fiyat (Para Birimi + Min - Max) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>💰 Fiyat</span>
+                  </div>
+                  <div class="currency-selector-row">
+                    <button type="button" class="currency-btn active" data-curr="TRY" onclick="App.setFilterCurrency('TRY', this)">TL</button>
+                    <button type="button" class="currency-btn" data-curr="USD" onclick="App.setFilterCurrency('USD', this)">USD</button>
+                    <button type="button" class="currency-btn" data-curr="EUR" onclick="App.setFilterCurrency('EUR', this)">EUR</button>
+                    <button type="button" class="currency-btn" data-curr="GBP" onclick="App.setFilterCurrency('GBP', this)">GBP</button>
+                  </div>
+                  <div class="dual-input-row">
+                    <input type="number" id="adv-filter-min-price" placeholder="min TL" oninput="App.onFilterInput()">
+                    <span style="color:var(--text-muted);">-</span>
+                    <input type="number" id="adv-filter-max-price" placeholder="max TL" oninput="App.onFilterInput()">
+                  </div>
+                </div>
+
+                <!-- 4. m² (Brüt) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>📐 m² (Brüt)</span>
+                  </div>
+                  <div class="dual-input-row">
+                    <input type="number" id="adv-filter-min-gross" placeholder="min" oninput="App.onFilterInput()">
+                    <span style="color:var(--text-muted);">-</span>
+                    <input type="number" id="adv-filter-max-gross" placeholder="max" oninput="App.onFilterInput()">
+                  </div>
+                </div>
+
+                <!-- 5. m² (Net) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>📐 m² (Net)</span>
+                  </div>
+                  <div class="dual-input-row">
+                    <input type="number" id="adv-filter-min-area" placeholder="min" oninput="App.onFilterInput()">
+                    <span style="color:var(--text-muted);">-</span>
+                    <input type="number" id="adv-filter-max-area" placeholder="max" oninput="App.onFilterInput()">
+                  </div>
+                </div>
+
+                <!-- 6. Oda Sayısı (Çoklu Seçim Checkbox Listesi) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🚪 Oda Sayısı</span>
+                    <small onclick="App.clearFilterRooms()">Temizle</small>
+                  </div>
+                  <div class="filter-check-list" id="adv-filter-rooms-list">
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="1+0" onchange="App.onFilterChange()">
+                      <span>1+0 (Stüdyo)</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="1+1" onchange="App.onFilterChange()">
+                      <span>1+1</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="2+0" onchange="App.onFilterChange()">
+                      <span>2+0</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="2+1" onchange="App.onFilterChange()">
+                      <span>2+1</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="2+2" onchange="App.onFilterChange()">
+                      <span>2+2</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="3+1" onchange="App.onFilterChange()">
+                      <span>3+1</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="3+2" onchange="App.onFilterChange()">
+                      <span>3+2</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="4+1" onchange="App.onFilterChange()">
+                      <span>4+1</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="4+2" onchange="App.onFilterChange()">
+                      <span>4+2</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="5+1" onchange="App.onFilterChange()">
+                      <span>5+1</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="5+2" onchange="App.onFilterChange()">
+                      <span>5+2</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" name="filter_rooms" value="6+" onchange="App.onFilterChange()">
+                      <span>6+ ve üzeri</span>
+                    </label>
+                  </div>
+                  <div style="display:flex; gap:6px; margin-top:8px;">
+                    <input type="text" id="adv-filter-custom-room-input" class="form-control" placeholder="+ Manuel Oda (örn: 7+1, 3+3)" style="padding:4px 8px; font-size:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();App.addCustomRoomFilter();}">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="App.addCustomRoomFilter()" style="padding:4px 10px; font-size:12px;">+ Ekle</button>
+                  </div>
+                  <div id="adv-filter-custom-rooms-container" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;"></div>
+                </div>
+
+                <!-- 7. Gayrimenkul Tipi -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏢 Gayrimenkul Tipi</span>
+                    <button type="button" id="adv-filter-type-toggle-btn" class="btn btn-secondary btn-sm" onclick="App.toggleCustomTypeFilter()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+                  </div>
+                  <select class="form-control" id="adv-filter-type" onchange="App.onFilterChange()">
+                    <option value="">Tümü (Daire, Villa...)</option>
+                    <option value="daire">Daire</option>
+                    <option value="rezidans">Rezidans</option>
+                    <option value="villa">Müstakil / Villa</option>
+                    <option value="arsa">Arsa</option>
+                    <option value="isyeri">İşyeri</option>
+                    <option value="ofis">Ofis</option>
+                  </select>
+                  <input type="text" id="adv-filter-custom-type" class="form-control" placeholder="Manuel Tip (örn: Çiftlik Evi, Dağ Evi, Depo...)" style="display:none; margin-top:6px;" oninput="App.onFilterInput()">
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('villa')">+ Villa</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('Çiftlik Evi')">+ Çiftlik Evi</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('Dağ Evi')">+ Dağ Evi</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('Depo')">+ Depo</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('Dükkan')">+ Dükkan</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualType('Prefabrik')">+ Prefabrik</button>
+                  </div>
+                </div>
+
+                <!-- 7.1 Site / Proje Adı (Manuel Serbest Giriş) -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏰 Site / Proje Adı</span>
+                    <span class="location-badge-pill">Manuel Serbest ✓</span>
+                  </div>
+                  <input type="text" class="form-control" id="adv-filter-site-name" list="site-name-suggestions" placeholder="Manuel Site Adı (örn: Kaya Prestij...)" oninput="App.onFilterInput()">
+                  <datalist id="site-name-suggestions">
+                    <option value="Kaya Prestij Konutları"></option>
+                    <option value="Mavi Göl Sahil Villaları"></option>
+                    <option value="Gölkent Yaşam Konutları"></option>
+                    <option value="Palmiye Konutları"></option>
+                    <option value="Varyap Meridian"></option>
+                    <option value="Ağaoğlu My Tower"></option>
+                    <option value="Moda Sahil Konakları"></option>
+                  </datalist>
+                </div>
+
+                <!-- 8. Bina Yaşı -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏗️ Bina Yaşı</span>
+                    <span style="font-size:11px; color:var(--text-muted);">Manuel Aralık</span>
+                  </div>
+                  <select class="form-control" id="adv-filter-building-age" onchange="App.onFilterChange()">
+                    <option value="">Farketmez (Tümü)</option>
+                    <option value="0">0 (Sıfır Bina)</option>
+                    <option value="1-5">1 - 5 Yaşında</option>
+                    <option value="6-10">6 - 10 Yaşında</option>
+                    <option value="11-15">11 - 15 Yaşında</option>
+                    <option value="16-20">16 - 20 Yaşında</option>
+                    <option value="21+">21 Yaş ve Üzeri</option>
+                  </select>
+                  <div style="display:flex; align-items:center; gap:6px; margin-top:6px;">
+                    <input type="number" id="adv-filter-min-age" class="form-control" placeholder="min yaş" style="padding:4px 8px; font-size:12px;" min="0" oninput="App.onFilterInput()">
+                    <span style="color:var(--text-muted);">-</span>
+                    <input type="number" id="adv-filter-max-age" class="form-control" placeholder="max yaş" style="padding:4px 8px; font-size:12px;" min="0" oninput="App.onFilterInput()">
+                  </div>
+                </div>
+
+                <!-- 9. Bulunduğu Kat -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🏬 Bulunduğu Kat</span>
+                    <button type="button" id="adv-filter-floor-toggle-btn" class="btn btn-secondary btn-sm" onclick="App.toggleCustomFloorFilter()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+                  </div>
+                  <select class="form-control" id="adv-filter-floor-type" onchange="App.onFilterChange()">
+                    <option value="">Farketmez (Tümü)</option>
+                    <option value="Bahçe Katı">Bahçe Katı</option>
+                    <option value="Giriş Katı">Giriş Katı</option>
+                    <option value="Yüksek Giriş">Yüksek Giriş</option>
+                    <option value="Ara Kat">Ara Kat</option>
+                    <option value="En Üst Kat">En Üst Kat</option>
+                    <option value="Çatı Dubleksi">Çatı Dubleksi</option>
+                    <option value="Bahçe Dubleksi">Bahçe Dubleksi</option>
+                    <option value="Villa Katı">Villa Katı</option>
+                  </select>
+                  <input type="text" id="adv-filter-custom-floor" class="form-control" placeholder="Manuel Kat (örn: 5. Kat, Bodrum, Teras...)" style="display:none; margin-top:6px;" oninput="App.onFilterInput()">
+                </div>
+
+                <!-- 10. Isıtma -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🔥 Isıtma</span>
+                    <button type="button" id="adv-filter-heating-toggle-btn" class="btn btn-secondary btn-sm" onclick="App.toggleCustomHeatingFilter()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+                  </div>
+                  <select class="form-control" id="adv-filter-heating" onchange="App.onFilterChange()">
+                    <option value="">Farketmez (Tümü)</option>
+                    <option value="Kombi (Doğalgaz)">Kombi (Doğalgaz)</option>
+                    <option value="Merkezi Pay Ölçer">Merkezi Pay Ölçer</option>
+                    <option value="Yerden Isıtma">Yerden Isıtma</option>
+                    <option value="Klima">Klima</option>
+                    <option value="Soba">Soba</option>
+                  </select>
+                  <input type="text" id="adv-filter-custom-heating" class="form-control" placeholder="Manuel Isıtma (örn: Jeotermal, Pelet, Şömine...)" style="display:none; margin-top:6px;" oninput="App.onFilterInput()">
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualHeating('Jeotermal')">+ Jeotermal</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualHeating('Şömine')">+ Şömine</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualHeating('Güneş Enerjisi')">+ Güneş</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualHeating('Pelet')">+ Pelet</button>
+                    <button type="button" class="neighborhood-quick-chip" onclick="App.setManualHeating('VRF')">+ VRF</button>
+                  </div>
+                </div>
+
+                <!-- 11. Banyo Sayısı -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🚿 Banyo Sayısı</span>
+                  </div>
+                  <select class="form-control" id="adv-filter-bathrooms" onchange="App.onFilterChange()">
+                    <option value="">Farketmez</option>
+                    <option value="1">1 ve üzeri</option>
+                    <option value="2">2 ve üzeri</option>
+                    <option value="3">3 ve üzeri</option>
+                    <option value="4">4 ve üzeri</option>
+                  </select>
+                </div>
+
+                <!-- 12. Donanım & Seçenekler -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>✨ Donanım & Özellikler</span>
+                  </div>
+                  <div class="filter-check-list">
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-balcony" onchange="App.onFilterChange()">
+                      <span>🌿 Balkon (Var)</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-elevator" onchange="App.onFilterChange()">
+                      <span>🛗 Asansör (Var)</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-parking" onchange="App.onFilterChange()">
+                      <span>🚗 Otopark (Var)</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-site" onchange="App.onFilterChange()">
+                      <span>🏰 Site İçerisinde</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-furnished" onchange="App.onFilterChange()">
+                      <span>🛋️ Eşyalı</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-credit" onchange="App.onFilterChange()">
+                      <span>🏦 Krediye Uygun</span>
+                    </label>
+                    <label class="filter-check-item">
+                      <input type="checkbox" id="adv-filter-swap" onchange="App.onFilterChange()">
+                      <span>🔄 Takaslı</span>
+                    </label>
+                  </div>
+
+                  <!-- Manuel Donanım & Nitelik Ekleme -->
+                  <div style="margin-top:10px; padding-top:8px; border-top:1px dashed var(--border-color);">
+                    <label style="font-size:11px; color:var(--text-muted); font-weight:600; display:block; margin-bottom:4px;">+ Manuel Özel Donanım / Nitelik Ekle:</label>
+                    <div style="display:flex; gap:6px;">
+                      <input type="text" id="adv-filter-custom-feature-input" class="form-control" placeholder="örn: Göl Manzarası, Akıllı Ev..." style="padding:4px 8px; font-size:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();App.addCustomFeatureFilter();}">
+                      <button type="button" class="btn btn-secondary btn-sm" onclick="App.addCustomFeatureFilter()" style="padding:4px 10px; font-size:12px;">+ Ekle</button>
+                    </div>
+                    <div id="adv-filter-custom-features-chips" style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;"></div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Göl Manzarası')">+ Göl Manzarası</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Deniz Manzarası')">+ Deniz Manzarası</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Akıllı Ev')">+ Akıllı Ev</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Şömine')">+ Şömine</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Ebeveyn Banyosu')">+ Ebeveyn Banyosu</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Yerden Isıtma')">+ Yerden Isıtma</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Özel Bahçe')">+ Özel Bahçe</button>
+                      <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddCustomFeature('Yüzme Havuzu')">+ Yüzme Havuzu</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 13. Kullanım Durumu -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🔑 Kullanım Durumu</span>
+                  </div>
+                  <select class="form-control" id="adv-filter-tenant-status" onchange="App.onFilterChange()">
+                    <option value="">Farketmez</option>
+                    <option value="bos">Boş (Hemen Taşınmaya Hazır)</option>
+                    <option value="kiracili">Kiracılı (Yatırımlık)</option>
+                    <option value="mulk-sahibi">Mülk Sahibi Oturuyor</option>
+                  </select>
+                </div>
+
+                <!-- 14. Tapu Durumu -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>📜 Tapu Durumu</span>
+                  </div>
+                  <select class="form-control" id="adv-filter-deed-status" onchange="App.onFilterChange()">
+                    <option value="">Farketmez</option>
+                    <option value="kat-mulkiyeti">Kat Mülkiyetli</option>
+                    <option value="kat-irtifaki">Kat İrtifaklı</option>
+                    <option value="arsa-payi">Hisseli / Arsa Paylı</option>
+                  </select>
+                </div>
+
+                <!-- 15. Kelime ile Filtrele -->
+                <div class="filter-group">
+                  <div class="filter-group-title">
+                    <span>🔍 Kelime ile Filtrele</span>
+                  </div>
+                  <input type="text" class="form-control" id="adv-filter-keyword" placeholder="örn: deniz, havuz, metro..." oninput="App.onFilterInput()">
+                </div>
+              </div>
+
+              <!-- Kenar Çubuğu Alt Butonları -->
+              <div class="filter-sidebar-footer">
+                <label class="live-filter-toggle" title="Kutucukları seçtikçe sonuçları anında yeniler">
+                  <input type="checkbox" id="live-filter-toggle" checked onchange="App.onLiveToggleChange()">
+                  <span>✓ Seçtikçe sonuç getir</span>
+                </label>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="App.resetAdvancedFilters()" style="flex:1;">
+                    Temizle
+                  </button>
+                  <button type="button" class="btn btn-primary btn-sm" onclick="App.applyAdvancedFilters(); App.closeFilterSidebar();" style="flex:2; font-weight:700;">
+                    🔍 Filtreleri Uygula
+                  </button>
+                </div>
+              </div>
+            </aside>
+
+            <!-- ── SAĞ SONUÇ ALANI (PORTAL RESULTS AREA) ── -->
+            <section class="portal-results-area">
+              <!-- Üst Bar: Sayaç, Filtre Çekmecesi Butonu ve Sıralama -->
+              <div class="results-topbar">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-secondary btn-sm filter-trigger-btn" onclick="App.toggleFilterSidebar()" title="Detaylı arama ve filtre panelini aç">
+                    <span>⚡ Detaylı Filtreler</span>
+                    <span class="badge badge-rooms" id="mobile-filter-badge" style="display:none;">0</span>
+                  </button>
+
+                  <div class="results-count-text">
+                    <span id="portal-results-counter">0 İlan</span> Bulundu
+                  </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <select class="form-control" id="sort-properties" style="width:auto; font-size:12px; padding:6px 12px;" onchange="App.filterState.sortBy = this.value; App.renderProperties();">
+                    <option value="newest">Sıralama: En Yeni İlanlar</option>
+                    <option value="price_asc">Fiyat: Düşükten Yükseğe</option>
+                    <option value="price_desc">Fiyat: Yüksekten Düşüğe</option>
+                    <option value="area_desc">Alan (m²): Büyükten Küçüğe</option>
+                    <option value="yield_desc">Kira Getirisi: En Yüksek</option>
+                  </select>
+                  <button class="btn btn-primary btn-sm" onclick="App.openCreatePropertyModal()">
+                    <span>+</span> <span>İlan Ekle</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Hızlı Filtre Hapları -->
+              <div class="quick-filter-row">
+                <button type="button" class="filter-pill active" data-pill-type="all" onclick="App.applyQuickFilter('all', this)">Tümü</button>
+                <button type="button" class="filter-pill" id="filter-pill-only-mine" data-pill-type="onlyMine" onclick="App.applyQuickFilter('onlyMine', this)">🎯 Sadece Benim Portföyüm</button>
+                <button type="button" class="filter-pill" data-pill-type="status" data-val="satilik" onclick="App.applyQuickFilter('status', this, 'satilik')">Satılık</button>
+                <button type="button" class="filter-pill" data-pill-type="status" data-val="kiralik" onclick="App.applyQuickFilter('status', this, 'kiralik')">Kiralık</button>
+                <button type="button" class="filter-pill" data-pill-type="rooms" data-val="1+1" onclick="App.applyQuickFilter('rooms', this, '1+1')">1+1</button>
+                <button type="button" class="filter-pill" data-pill-type="rooms" data-val="2+1" onclick="App.applyQuickFilter('rooms', this, '2+1')">2+1</button>
+                <button type="button" class="filter-pill" data-pill-type="rooms" data-val="3+1" onclick="App.applyQuickFilter('rooms', this, '3+1')">3+1</button>
+                <button type="button" class="filter-pill" data-pill-type="rooms" data-val="4+1" onclick="App.applyQuickFilter('rooms', this, '4+1')">4+1</button>
+                <button type="button" class="filter-pill" data-pill-type="class" data-val="A" onclick="App.applyQuickFilter('class', this, 'A')">⭐ A Sınıfı</button>
+                <button type="button" class="filter-pill" data-pill-type="site" onclick="App.applyQuickFilter('site', this)">🏰 Site İçi</button>
+                <button type="button" class="filter-pill" data-pill-type="fav" onclick="App.applyQuickFilter('fav', this)">❤️ Favoriler</button>
+              </div>
+
+              <!-- Aktif Seçili Filtre Etiketleri (Chips) -->
+              <div class="active-filter-tags-row" id="active-filter-tags-container" style="display:none;"></div>
+
+              <!-- İlan Kartları Izgarası -->
+              <div class="property-grid" id="properties-grid">
+                <!-- Dinamik doldurulacak -->
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             3. CUSTOMERS CRM TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-customers" style="display:none;">
+          <div class="results-topbar" style="margin-bottom:14px;">
+            <div class="quick-filter-row" style="margin-bottom:0; flex:1;">
+              <button type="button" class="filter-pill active" onclick="App.applyCustomerClassFilter('', this)">Tüm Müşteriler</button>
+              <button type="button" class="filter-pill" id="btn-cust-only-mine" onclick="App.toggleCustomerOnlyMine(this)">🎯 Sadece Benim</button>
+              <button type="button" class="filter-pill" onclick="App.applyCustomerClassFilter('A', this)">🔥 A (Çok Sıcak)</button>
+              <button type="button" class="filter-pill" onclick="App.applyCustomerClassFilter('B', this)">⚡ B (Sıcak)</button>
+              <button type="button" class="filter-pill" onclick="App.applyCustomerClassFilter('C', this)">🌱 C (Potansiyel)</button>
+              <button type="button" class="filter-pill" onclick="App.applyCustomerClassFilter('D', this)">⏳ D (Uzun Vadeli)</button>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <select class="form-control" id="filter-cust-status" style="width:auto; font-size:12px; padding:6px 10px;" onchange="App.filterState.customerStatus = this.value; App.renderCustomers();">
+                <option value="">Süreç: Tümü</option>
+                <option value="yeni">🆕 Yeni Talep</option>
+                <option value="aktif">🔄 İletişimde / Sunum</option>
+                <option value="gosterim">🏠 Yer Gösterimi</option>
+                <option value="teklif">🤝 Teklif / Pazarlık</option>
+                <option value="kapandi_basarili">🎉 Satış Gerçekleşti</option>
+                <option value="kaybedildi">❌ Kaybedildi</option>
+                <option value="pasif">⏸️ Pasif</option>
+              </select>
+
+              <select class="form-control" id="filter-cust-department" style="width:auto; font-size:12px; padding:6px 10px;" onchange="App.filterState.customerDepartment = this.value; App.renderCustomers();">
+                <option value="">🏛️ Birim: Tümü</option>
+              </select>
+
+              <button class="btn btn-primary btn-sm" onclick="App.openCreateCustomerModal()">
+                <span>+</span> <span>Müşteri Ekle</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="customer-grid" id="customers-grid">
+            <!-- Dinamik doldurulacak -->
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             4. SMART MATCHING ENGINE TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-matching" style="display:none;">
+          <!-- Mod Değiştirici -->
+          <div class="tabs-nav" style="margin-bottom:20px;">
+            <button class="tab-btn match-mode-tab active" data-mode="customer">
+              👤 Müşteriye Uygun İlanları Bul
+            </button>
+            <button class="tab-btn match-mode-tab" data-mode="property">
+              🏠 İlana Uygun Müşterileri Bul
+            </button>
+          </div>
+
+          <div class="matching-view">
+            <!-- Sol Seçici Panel -->
+            <div class="match-selector-panel">
+              <input type="text" id="match-selector-search" class="form-control" placeholder="Listede ara..." style="margin-bottom:14px; font-size:12px;" />
+              <div id="match-selector-items" style="max-height:600px; overflow-y:auto;">
+                <!-- Dinamik liste -->
+              </div>
+            </div>
+
+            <!-- Sağ Sonuçlar Paneli -->
+            <div class="match-results-panel" id="match-results-container">
+              <!-- Dinamik eşleşme kartları -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             5. FOLLOW-UPS TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-followups" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+            <div class="tabs-nav" style="margin-bottom:0; border-bottom:none;">
+              <button class="tab-btn active" onclick="App.filterState.followupFilter = 'all'; document.querySelectorAll('#tab-followups .tab-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); App.renderFollowUps();">
+                Tüm Görevler
+              </button>
+              <button class="tab-btn" onclick="App.filterState.followupFilter = 'today'; document.querySelectorAll('#tab-followups .tab-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); App.renderFollowUps();">
+                Bugün Yapılacaklar
+              </button>
+              <button class="tab-btn" onclick="App.filterState.followupFilter = 'pending'; document.querySelectorAll('#tab-followups .tab-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); App.renderFollowUps();">
+                Bekleyenler
+              </button>
+              <button class="tab-btn" onclick="App.filterState.followupFilter = 'completed'; document.querySelectorAll('#tab-followups .tab-btn').forEach(b => b.classList.remove('active')); this.classList.add('active'); App.renderFollowUps();">
+                Tamamlananlar
+              </button>
+            </div>
+            <button class="btn btn-primary" onclick="App.openCreateFollowUpModal()">
+              + Yeni Takip Görevi
+            </button>
+          </div>
+
+          <div class="followup-list" id="followups-list-container">
+            <!-- Dinamik görev listesi -->
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             6. B2B ORTAK HAVUZ (B2B POOL) TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-pool" style="display:none;">
+          <div class="pool-header-banner" style="background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); padding:20px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; box-shadow:var(--shadow-sm);">
+            <div>
+              <h3 style="font-size:18px; font-weight:800; color:var(--heading-color); margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+                <span>🌐</span> Ortak Portföy & Müşteri Havuzu (B2B Pazar)
+              </h3>
+              <p style="font-size:13px; color:var(--text-secondary); margin:0;">
+                Platformdaki diğer emlak şirketlerinin paylaştığı portföyleri ve KVKK korumalı alıcı taleplerini inceleyin, iş birliği yapın.
+              </p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button class="btn btn-secondary pool-subtab-btn active" data-pool-sub="properties" onclick="App.setPoolSubTab('properties')">
+                🏢 Ortak İlanlar (<span id="pool-prop-sub-count">0</span>)
+              </button>
+              <button class="btn btn-secondary pool-subtab-btn" data-pool-sub="customers" onclick="App.setPoolSubTab('customers')">
+                👥 Ortak Alıcı Talepleri (<span id="pool-cust-sub-count">0</span>)
+              </button>
+              <button class="btn btn-secondary pool-subtab-btn" data-pool-sub="my_shares" onclick="App.setPoolSubTab('my_shares')">
+                ⭐ Havuzdaki Paylaşımlarım (<span id="pool-my-shares-sub-count">0</span>)
+              </button>
+            </div>
+          </div>
+
+          <!-- Ortak İlanlar Bölümü -->
+          <div id="pool-properties-container">
+            <div class="properties-grid" id="pool-properties-grid">
+              <!-- Dinamik ortak ilanlar -->
+            </div>
+          </div>
+
+          <!-- Ortak Müşteri Talepleri Bölümü (KVKK Korumalı) -->
+          <div id="pool-customers-container" style="display:none;">
+            <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:var(--radius-sm); padding:12px 16px; margin-bottom:16px; font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:10px;">
+              <span style="font-size:18px;">🔒</span>
+              <span><strong>KVKK & Veri Minimizasyonu Güvencesi:</strong> Müşterilerin telefon, e-posta ve özel notları gizlenmiştir. Bir alıcı talebi portföyünüzle uyumluysa, temsilci emlak şirketi ile platform içi iş birliği başlatabilirsiniz.</span>
+            </div>
+            <div class="customers-grid" id="pool-customers-grid">
+              <!-- Dinamik ortak müşteri kartları -->
+            </div>
+          </div>
+
+          <!-- Kendi Havuz Paylaşımlarım Bölümü -->
+          <div id="pool-my-shares-container" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary btn-sm pool-myshare-filter-btn active" data-filter="all" onclick="App.filterPoolMyShares('all', this)">
+                  Tümü
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm pool-myshare-filter-btn" data-filter="onlyMine" onclick="App.filterPoolMyShares('onlyMine', this)">
+                  🎯 Sadece Benim Eklediklerim
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm pool-myshare-filter-btn" data-filter="props" onclick="App.filterPoolMyShares('props', this)">
+                  🏠 İlanlar
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm pool-myshare-filter-btn" data-filter="custs" onclick="App.filterPoolMyShares('custs', this)">
+                  👥 Müşteriler
+                </button>
+              </div>
+              <div style="font-size:12px; color:var(--text-muted);" id="pool-my-shares-summary-text">
+                Toplam paylaşılan portföy ve talepler
+              </div>
+            </div>
+
+            <div class="property-grid" id="pool-my-shares-grid">
+              <!-- Kendi havuz paylaşımlarımız -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             7. ŞİRKET & EKİP YÖNETİMİ (COMPANY TAB)
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-company" style="display:none;">
+          <!-- Danışman Yetki Bilgilendirme Rozeti / Banner -->
+          <div id="company-role-notice" style="display:none; margin-bottom:16px; padding:12px 18px; border-radius:var(--radius-sm); background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-secondary); font-size:13px; align-items:center; gap:10px;">
+            <span style="font-size:20px;">ℹ️</span>
+            <div>
+              <strong>Gayrimenkul Danışmanı Modu:</strong> Ofis unvanı, şirket resmi bilgileri ve yeni danışman davetleri yalnızca <strong>Şirket Sahibi / Yönetici</strong> yetkisindedir. Ekip arkadaşlarınızın iletişim bilgilerini aşağıdan görebilirsiniz.
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:20px;">
+            <!-- Şirket Bilgileri Kartı -->
+            <div class="card" style="padding:24px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="font-size:16px; font-weight:700;">🏢 Şirket Profili</h3>
+                <span class="badge badge-sale" id="company-tier-badge">PRO PLAN</span>
+              </div>
+              <form id="company-profile-form" onsubmit="App.handleSaveCompanyProfile(event)">
+                <div class="form-group" style="margin-bottom:12px;">
+                  <label>Şirket / Ofis Ünvanı</label>
+                  <input type="text" id="comp-name-input" class="form-control" required />
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                  <div class="form-group">
+                    <label>Telefon</label>
+                    <input type="text" id="comp-phone-input" class="form-control" />
+                  </div>
+                  <div class="form-group">
+                    <label>E-posta</label>
+                    <input type="email" id="comp-email-input" class="form-control" />
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+                  <div class="form-group">
+                    <label>Şehir</label>
+                    <input type="text" id="comp-city-input" class="form-control" />
+                  </div>
+                  <div class="form-group">
+                    <label>Vergi No</label>
+                    <input type="text" id="comp-tax-input" class="form-control" />
+                  </div>
+                </div>
+                <div class="form-group" style="margin-bottom:16px;">
+                  <label>Adres</label>
+                  <input type="text" id="comp-address-input" class="form-control" />
+                </div>
+                <button type="submit" id="btn-save-company-profile" class="btn btn-primary" style="width:100%;">Değişiklikleri Kaydet</button>
+                <div id="company-profile-lock-text" style="display:none; text-align:center; font-size:12px; color:var(--text-muted); margin-top:8px;">🔒 Düzenleme yetkisi yalnızca Şirket Sahibi'ne aittir.</div>
+              </form>
+            </div>
+
+            <!-- Ekip & Çalışan Yönetimi -->
+            <div class="card" style="padding:24px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h3 style="font-size:16px; font-weight:700;">👥 Ekip Üyeleri (<span id="company-member-count">0</span>)</h3>
+                <button class="btn btn-primary" id="btn-open-invite-modal" onclick="App.openInviteMemberModal()" style="font-size:12px; padding:6px 12px;">
+                  + Çalışan Davet Et
+                </button>
+              </div>
+              <div id="company-members-list" style="display:flex; flex-direction:column; gap:8px; max-height:340px; overflow-y:auto;">
+                <!-- Dinamik üye listesi -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Departmanlar & Çalışma Grupları Kartı -->
+          <div class="card" style="padding:24px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+              <div>
+                <h3 style="font-size:17px; font-weight:800; display:flex; align-items:center; gap:8px; margin:0 0 4px 0;">
+                  <span>🏛️</span> Departmanlar & Çalışma Grupları (<span id="company-department-count">0</span>)
+                </h3>
+                <p style="font-size:12.5px; color:var(--text-muted); margin:0;">
+                  Şirketinizin uzmanlık alanlarına ve hedeflerine göre özelleştirilebilir departmanlar oluşturun, kriterler belirleyin ve danışmanları bu birimlere atayın.
+                </p>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="btn btn-primary" id="btn-create-department" onclick="App.openCreateDepartmentModal()" style="font-size:12.5px; padding:7px 14px; font-weight:700;">
+                  <span>+</span> <span>Yeni Departman Oluştur</span>
+                </button>
+                <div id="department-role-notice" style="display:none; font-size:11px; padding:4px 10px; border-radius:var(--radius-sm); background:var(--bg-secondary); border:1px solid var(--border-color); color:var(--text-secondary);">
+                  🔒 Ayarlar Yalnızca Yöneticiye Açıktır
+                </div>
+              </div>
+            </div>
+
+            <!-- Departman Kartları Grid'i -->
+            <div class="department-grid" id="company-departments-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:16px;">
+              <!-- Dinamik departman kartları -->
+            </div>
+          </div>
+
+          <!-- Bekleyen Davetler Kartı -->
+          <div class="card" style="padding:20px;">
+            <h3 style="font-size:15px; font-weight:700; margin-bottom:12px;">📬 Bekleyen Çalışan Davetleri</h3>
+            <div id="company-invitations-list">
+              <!-- Dinamik davetler -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════
+             8. SETTINGS & SYNC TAB
+             ══════════════════════════════════════════════════════ -->
+        <div class="tab-content" id="tab-settings" style="display:none;">
+          <div id="settings-content-wrap">
+            <!-- Dinamik ağ & yedekleme içeriği -->
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ─── MOBILE BOTTOM NAVIGATION BAR ───────────────────────── -->
+  <nav class="mobile-nav">
+    <div class="mobile-nav-item active" data-tab="dashboard">
+      <span class="mobile-nav-icon">📊</span>
+      <span>Özet</span>
+    </div>
+    <div class="mobile-nav-item" data-tab="properties">
+      <span class="mobile-nav-icon">🏢</span>
+      <span>İlanlar</span>
+    </div>
+    <div class="mobile-fab" id="mobile-fab-btn" title="Hızlı Ekle">
+      +
+    </div>
+    <div class="mobile-nav-item" data-tab="matching">
+      <span class="mobile-nav-icon">✨</span>
+      <span>Eşleştir</span>
+    </div>
+    <div class="mobile-nav-item" onclick="App.toggleNavLauncher()" title="Tüm Sayfalar ve Modüller Menüsü">
+      <span class="mobile-nav-icon">▦</span>
+      <span>Sayfalar</span>
+    </div>
+  </nav>
+
+    <!-- ─── MODALS ───────────────────────────────────────────── -->
+  <!-- Quick Add Modal (Hızlı Seçim) -->
+  <div class="modal-backdrop" id="quick-add-modal">
+    <div class="modal" style="max-width:440px;">
+      <div class="modal-header">
+        <h3>Hızlı İşlem Ekle</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <button class="btn btn-primary" style="justify-content:center; padding:14px; font-size:14px;" onclick="App.openCreatePropertyModal()">
+          🏠 Yeni Gayrimenkul İlanı Ekle
+        </button>
+        <button class="btn btn-secondary" style="justify-content:center; padding:14px; font-size:14px;" onclick="App.openCreateCustomerModal()">
+          👥 Yeni Alıcı / Müşteri Ekle
+        </button>
+        <button class="btn btn-secondary" style="justify-content:center; padding:14px; font-size:14px;" onclick="App.openCreateFollowUpModal()">
+          ⏰ Yeni Takip Görevi Planla
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Property Form Modal (Sahibinden Tarzı Kapsamlı Manuel & Hızlı Seçim) -->
+  <div class="modal-backdrop" id="property-form-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="property-modal-title">Yeni Gayrimenkul İlanı Ekle</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="property-form">
+        <input type="hidden" id="property-form-id" />
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group full">
+              <label>İlan Başlığı *</label>
+              <input type="text" id="prop-title" class="form-control" placeholder="Örn: İpekyolu Prestij Konutlarında Sıfır Lüks 3+1" required />
+            </div>
+
+            <!-- Gayrimenkul Türü (Manuel & Hızlı Çipler) -->
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Gayrimenkul Türü *</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="prop-type-toggle-btn" onclick="App.togglePropTypeManual()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+              </label>
+              <select id="prop-type" class="form-control">
+                <option value="daire">Daire</option>
+                <option value="rezidans">Rezidans</option>
+                <option value="villa">Müstakil / Villa</option>
+                <option value="arsa">Arsa</option>
+                <option value="isyeri">İşyeri</option>
+                <option value="ofis">Ofis</option>
+              </select>
+              <input type="text" id="prop-type-custom" class="form-control" placeholder="Manuel Tip (örn: Çiftlik Evi, Dağ Evi, Depo...)" style="display:none; margin-top:4px;" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('daire')">Daire</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('rezidans')">Rezidans</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('villa')">Villa</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('Çiftlik Evi')">Çiftlik Evi</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('Yazlık')">Yazlık</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('isyeri')">İşyeri</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropType('arsa')">Arsa</button>
+              </div>
+            </div>
+
+            <!-- Durum -->
+            <div class="form-group">
+              <label>Portföy Durumu & Satış Süreci *</label>
+              <select id="prop-status" class="form-control">
+                <option value="hazirlaniyor">📝 Hazırlanıyor (Evrak / Fotoğraf)</option>
+                <option value="satilik" selected>🟢 Satılık (Aktif Yayında)</option>
+                <option value="kiralik">🔵 Kiralık (Aktif Yayında)</option>
+                <option value="gorusmede">🤝 Görüşmede / Pazarlıkta</option>
+                <option value="kapora">📑 Kapora Alındı / Tapu Hazırlığı</option>
+                <option value="satildi">🏆 Satıldı (Kapanış)</option>
+                <option value="kiralandi">🔑 Kiralandı</option>
+                <option value="pasif">⏸️ Pasif (Askıda)</option>
+              </select>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-status').value='satilik'">Satılık</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-status').value='kiralik'">Kiralık</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-status').value='gorusmede'">Görüşmede</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-status').value='hazirlaniyor'">Hazırlık</button>
+              </div>
+            </div>
+
+            <!-- Standart Türk Emlak Oda Sayısı Seçimi (Manuel & Hızlı Çipler) -->
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Oda Sayısı (1+1, 2+1, 3+1 vb.) *</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="prop-rooms-toggle-btn" onclick="App.togglePropRoomsManual()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+              </label>
+              <select id="prop-rooms" class="form-control">
+                <option value="1+0">1+0 (Stüdyo)</option>
+                <option value="1+1">1+1</option>
+                <option value="2+0">2+0</option>
+                <option value="2+1" selected>2+1</option>
+                <option value="2+2">2+2</option>
+                <option value="3+1">3+1</option>
+                <option value="3+2">3+2</option>
+                <option value="4+1">4+1</option>
+                <option value="4+2">4+2</option>
+                <option value="5+1">5+1</option>
+                <option value="5+2">5+2</option>
+                <option value="6+">6+ ve üzeri</option>
+              </select>
+              <input type="text" id="prop-rooms-custom" class="form-control" placeholder="Manuel Oda (örn: 7+1, 3+3, Dubleks 5+2)" style="display:none; margin-top:4px;" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('1+1')">1+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('2+1')">2+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('3+1')">3+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('4+1')">4+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('5+1')">5+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('5+2')">5+2</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('7+1')">7+1</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropRooms('Dubleks 4+2')">Dubleks 4+2</button>
+              </div>
+            </div>
+
+            <!-- Isıtma Tipi (Manuel & Hızlı Çipler) -->
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Isıtma Tipi</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="prop-heating-toggle-btn" onclick="App.togglePropHeatingManual()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+              </label>
+              <select id="prop-heating" class="form-control">
+                <option value="dogalgaz">Kombi (Doğalgaz)</option>
+                <option value="merkezi">Merkezi Pay Ölçer</option>
+                <option value="yerden">Yerden Isıtma</option>
+                <option value="klima">Klima</option>
+                <option value="soba">Soba</option>
+              </select>
+              <input type="text" id="prop-heating-custom" class="form-control" placeholder="Manuel Isıtma (örn: Jeotermal, Pelet, Şömine...)" style="display:none; margin-top:4px;" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('dogalgaz')">Doğalgaz</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('yerden')">Yerden Isıtma</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('merkezi')">Merkezi</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('klima')">Klima</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('Jeotermal')">Jeotermal</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropHeating('Pelet / Şömine')">Pelet/Şömine</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Banyo Sayısı</label>
+              <input type="number" id="prop-bathrooms" class="form-control" value="1" min="1" max="10" />
+            </div>
+
+            <div class="form-group">
+              <label>Fiyat *</label>
+              <input type="number" id="prop-price" class="form-control" placeholder="12500000" required />
+            </div>
+
+            <div class="form-group">
+              <label>Para Birimi</label>
+              <select id="prop-currency" class="form-control">
+                <option value="TRY">₺ TRY</option>
+                <option value="USD">$ USD</option>
+                <option value="EUR">€ EUR</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Net Alan (m²) *</label>
+              <input type="number" id="prop-net-area" class="form-control" placeholder="135" required />
+            </div>
+
+            <div class="form-group">
+              <label>Brüt Alan (m²)</label>
+              <input type="number" id="prop-gross-area" class="form-control" placeholder="160" />
+            </div>
+
+            <!-- İl Seçimi -->
+            <div class="form-group">
+              <label>Şehir / İl *</label>
+              <select id="prop-city" class="form-control" onchange="App.onPropCityChange()" required>
+                <!-- Locations.js ile doldurulacak -->
+              </select>
+            </div>
+
+            <!-- İlçe Seçimi (Manuel & Dropdown) -->
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>İlçe *</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="prop-district-toggle-btn" onclick="App.togglePropDistrictManual()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Manuel Yaz</button>
+              </label>
+              <select id="prop-district" class="form-control" onchange="App.onPropDistrictChange()">
+                <!-- Van'ın 13 ilçesi ve seçilen ilin ilçeleri yüklenecek -->
+              </select>
+              <input type="text" id="prop-district-custom" class="form-control" placeholder="Örn: İpekyolu, Tuşba veya İlçe Adı" style="display:none; margin-top:4px;" />
+            </div>
+
+            <!-- Semt / Mahalle (Manuel Serbest & Datalist & Çipler) -->
+            <div class="form-group full">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Semt / Mahalle * <small style="color:var(--accent-emerald); font-weight:600;">(Manuel Giriş Serbest ✓)</small></span>
+                <small style="color:var(--text-muted); font-size:11px;">İster öneriden seçin, ister elle dilediğinizi yazın</small>
+              </label>
+              <input type="text" id="prop-neighborhood" class="form-control" list="prop-neighborhood-datalist" placeholder="Örn: Bahçıvan Mah., Maraş Cad., İskele Mah. veya dilediğinizi yazın" required />
+              <datalist id="prop-neighborhood-datalist"></datalist>
+              <div id="prop-neighborhood-chips" style="margin-top:6px;"></div>
+            </div>
+
+            <!-- Bulunduğu Kat (Manuel & Hızlı Çipler) -->
+            <div class="form-group">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Bulunduğu Kat</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="prop-floor-toggle-btn" onclick="App.togglePropFloorManual()" style="padding:1px 6px; font-size:11px; height:auto;">✏️ Özel Kat Yaz</button>
+              </label>
+              <input type="number" id="prop-floor" class="form-control" placeholder="Örn: 4" />
+              <input type="text" id="prop-floor-custom" class="form-control" placeholder="Örn: Bahçe Katı, Çatı Dubleksi, Yüksek Giriş, Kot 1" style="display:none; margin-top:4px;" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('Giriş Katı')">Giriş Katı</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('Bahçe Katı')">Bahçe Katı</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('Ara Kat')">Ara Kat</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('Çatı Dubleksi')">Çatı Dubleksi</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('1')">1. Kat</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('2')">2. Kat</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('3')">3. Kat</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.setPropFloor('4')">4. Kat</button>
+              </div>
+            </div>
+
+            <!-- Bina Yaşı (Hızlı Çipler) -->
+            <div class="form-group">
+              <label>Bina Yaşı (Yıl)</label>
+              <input type="number" id="prop-age" class="form-control" placeholder="Örn: 0, 3, 5" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='0'">0 (Sıfır)</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='1'">1 Yaş</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='3'">3 Yaş</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='5'">5 Yaş</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='10'">10 Yaş</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="document.getElementById('prop-age').value='15'">15 Yaş</button>
+              </div>
+            </div>
+
+            <!-- Site / Proje Adı (Datalist & Manuel) -->
+            <div class="form-group">
+              <label>Site / Proje Adı</label>
+              <input type="text" id="prop-site" class="form-control" list="prop-site-datalist" placeholder="Palmiye Konutları..." />
+              <datalist id="prop-site-datalist">
+                <option value="Palmiye Konutları"></option>
+                <option value="Göl Panorama Evleri"></option>
+                <option value="Yeşil Vadi Konakları"></option>
+                <option value="Akasya Sitesi"></option>
+                <option value="Doğa Villaları"></option>
+                <option value="İpekyolu Prestij Konutları"></option>
+                <option value="Edremit Sahil Evleri"></option>
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label>Portföy Sınıfı</label>
+              <select id="prop-price-class" class="form-control">
+                <option value="A">A Sınıfı (Öncelikli / VIP)</option>
+                <option value="B" selected>B Sınıfı</option>
+                <option value="C">C Sınıfı</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Kullanım Durumu</label>
+              <select id="prop-tenant-status" class="form-control">
+                <option value="bos">Boş (Hemen Taşınmaya Hazır)</option>
+                <option value="kiracili">Kiracılı (Hazır Kira Getirisi)</option>
+                <option value="mulk-sahibi">Mülk Sahibi Oturuyor</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Tapu Durumu</label>
+              <select id="prop-deed-status" class="form-control">
+                <option value="kat-mulkiyeti">Kat Mülkiyetli</option>
+                <option value="kat-irtifaki">Kat İrtifaklı</option>
+                <option value="arsa-payi">Hisseli / Arsa Paylı</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Takyidat / Hukuki Durum</label>
+              <select id="prop-legal-encumbrance" class="form-control">
+                <option value="Temiz Tapu (Şerh/İpotek Yok)" selected>Temiz Tapu (Şerh / İpotek Yok)</option>
+                <option value="İpotekli (Satışta Kapanacak)">İpotekli (Satışta Kapanacak)</option>
+                <option value="Hisseli / Miras Paylı">Hisseli / Miras Paylı</option>
+                <option value="Şerhli / İntifa Hakkı Var">Şerhli / İntifa Hakkı Var</option>
+                <option value="İmar İncelemesinde">İmar / Ruhsat İncelemesinde</option>
+              </select>
+            </div>
+
+            <div class="form-group full" id="prop-price-change-wrap" style="display:none; background:#FFFBEB; border:1px dashed #FDE68A; padding:10px 14px; border-radius:var(--radius-sm);">
+              <label style="color:#D97706; font-weight:700;">📉 Fiyat Değişiklik Sebebi (Fiyat Tarihçesine Eklenir)</label>
+              <input type="text" id="prop-price-change-note" class="form-control" placeholder="Örn: Mülk sahibi talimatıyla %5 indirim yapıldı" />
+            </div>
+
+            <!-- 📋 Payidar Kalite Kontrol Listesi (5 Kriter) -->
+            <div class="form-group full" style="background:#FFFFFF; padding:16px; border-radius:var(--radius-sm); border:1px solid var(--border-color); margin-top:8px;">
+              <label style="font-weight:700; color:var(--heading-color); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                <span>📋 Payidar Portföy Kalite Kontrolü (5/5 Kriter)</span>
+                <small style="color:var(--text-secondary); font-size:11px;">Eksik kriterler tamamlanmadan portföy satışa hazır kabul edilmez</small>
+              </label>
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px; font-size:12px; margin-top:6px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="prop-chk-owner" checked /> 📑 Mülk sahibi & yetkilendirme kontrol edildi
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="prop-chk-pricing" checked /> 💰 Fiyat ve pazarlık koşulları netleştirildi
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="prop-chk-deed" checked /> 🏛️ Tapu ve temel taşınmaz bilgileri kontrol edildi
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="prop-chk-media" /> 📸 Fotoğraflar ve tanıtım bilgileri hazırlandı
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                  <input type="checkbox" id="prop-chk-advisor" checked /> 👤 Sorumlu danışman ve sonraki görev belirlendi
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Tahmini Aylık Kira (TL)</label>
+              <input type="number" id="prop-rent" class="form-control" placeholder="55000" />
+            </div>
+
+            <div class="form-group">
+              <label>Aidat (TL / Ay)</label>
+              <input type="number" id="prop-dues" class="form-control" placeholder="2500" />
+            </div>
+
+            <div class="form-group">
+              <label>Satıcı Adı Soyadı</label>
+              <input type="text" id="prop-contact-name" class="form-control" placeholder="Selim Bey" />
+            </div>
+
+            <div class="form-group">
+              <label>Satıcı Telefonu</label>
+              <input type="tel" id="prop-contact-phone" class="form-control" placeholder="0532 100 2030" />
+            </div>
+
+            <!-- ✨ Gayrimenkul Donanım & Nitelikleri (Manuel Serbest Ekleme) -->
+            <div class="form-group full" style="background:var(--bg-card); padding:16px; border-radius:var(--radius-lg); border:1px solid var(--border-color); margin-top:8px;">
+              <label style="font-weight:700; color:var(--text-primary); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                <span>✨ Gayrimenkul Donanım & Nitelikleri (Manuel Ekleme Serbest)</span>
+                <small style="color:var(--accent-emerald); font-weight:600;">İster elle yazıp ekleyin, ister hızlı çiplerden seçin</small>
+              </label>
+
+              <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <input type="text" id="prop-feature-input" class="form-control" placeholder="Örn: Akıllı Ev, Göl Manzarası, Şömine, Jakuzi..." onkeydown="if(event.key==='Enter'){event.preventDefault();App.addPropFeatureTag();}" />
+                <button type="button" class="btn btn-secondary btn-sm" onclick="App.addPropFeatureTag()" style="padding:6px 14px; font-weight:600; white-space:nowrap;">+ Nitelik Ekle</button>
+              </div>
+
+              <!-- Eklenen Nitelik Etiketleri (Chips) -->
+              <div id="prop-features-chips-container" style="display:flex; flex-wrap:wrap; gap:6px; min-height:28px; margin-bottom:10px;"></div>
+
+              <!-- Popüler Hızlı Nitelik Seçim Butonları -->
+              <div style="display:flex; flex-wrap:wrap; gap:5px; padding-top:8px; border-top:1px dashed var(--border-color);">
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Göl Manzarası')">+ Göl Manzarası</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Deniz Manzarası')">+ Deniz Manzarası</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Akıllı Ev Sistemi')">+ Akıllı Ev</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Şömine')">+ Şömine</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Ebeveyn Banyosu')">+ Ebeveyn Banyosu</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Giyinme Odası')">+ Giyinme Odası</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Yerden Isıtma')">+ Yerden Isıtma</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Özel Bahçe')">+ Özel Bahçe</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Yüzme Havuzu')">+ Yüzme Havuzu</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Geniş Balkon / Teras')">+ Geniş Balkon / Teras</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Kapalı Otopark')">+ Kapalı Otopark</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('7/24 Güvenlik')">+ 7/24 Güvenlik</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Site İçerisinde')">+ Site İçerisinde</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Krediye Uygun')">+ Krediye Uygun</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Eşyalı')">+ Eşyalı</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.quickAddPropFeature('Takasa Uygun')">+ Takasa Uygun</button>
+              </div>
+            </div>
+
+            <!-- Hızlı Nitelik Kutucukları -->
+            <div class="form-group full" style="display:flex; flex-wrap:wrap; gap:16px; margin-top:8px; background:var(--bg-tertiary); padding:12px 16px; border-radius:var(--radius-md);">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-parking" checked /> 🚗 Otopark
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-elevator" checked /> 🛗 Asansör
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-balcony" checked /> 🌿 Balkon
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-credit" checked /> 🏦 Krediye Uygun
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-swap" /> 🔄 Takasa Açık
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12.5px;">
+                <input type="checkbox" id="prop-furnished" /> 🛋️ Eşyalı
+              </label>
+            </div>
+
+            <div class="form-group full">
+              <label>Fotoğraf Bağlantısı (URL)</label>
+              <input type="url" id="prop-image-url" class="form-control" placeholder="https://images.unsplash.com/..." />
+            </div>
+
+            <div class="form-group full">
+              <label>Açıklama & Dahili Notlar</label>
+              <textarea id="prop-desc" class="form-control" placeholder="Gayrimenkul ile ilgili detaylar ve anahtar teslim notları..." rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">İptal</button>
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+    <!-- Customer Form Modal (Tercih Ettiği Oda Tipleri: 2+1, 3+1) -->
+  <div class="modal-backdrop" id="customer-form-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="customer-modal-title">Yeni Müşteri Ekle</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="customer-form">
+        <input type="hidden" id="customer-form-id" />
+        <div class="modal-body">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Müşteri Adı Soyadı *</label>
+              <input type="text" id="cust-name" class="form-control" placeholder="Barış Özkan" required />
+            </div>
+
+            <div class="form-group">
+              <label>Telefon Numarası *</label>
+              <input type="tel" id="cust-phone" class="form-control" placeholder="0532 999 1122" required />
+            </div>
+
+            <div class="form-group">
+              <label>E-posta Adresi</label>
+              <input type="email" id="cust-email" class="form-control" placeholder="baris@example.com" />
+            </div>
+
+            <div class="form-group">
+              <label>Müşteri Öncelik Sınıfı *</label>
+              <select id="cust-class" class="form-control">
+                <option value="A">🔥 A – Çok Sıcak (30 Gün İçinde / 24-48s Takip)</option>
+                <option value="B" selected>⚡ B – Sıcak (1–3 Ay / Haftalık Temas)</option>
+                <option value="C">🌱 C – Potansiyel (3–6 Ay / 15-30 Gün Kontrol)</option>
+                <option value="D">⏳ D – Uzun Vadeli (Dönemsel Takip)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Satış Süreci Durumu</label>
+              <select id="cust-pipeline-status" class="form-control">
+                <option value="yeni">🆕 Yeni Talep Alındı</option>
+                <option value="aktif" selected>🔄 İletişimde / Portföy Sunumu</option>
+                <option value="gosterim">🏠 Yer Gösterimi Planlandı / Yapıldı</option>
+                <option value="teklif">🤝 Teklif / Pazarlık Aşamasında</option>
+                <option value="kapandi_basarili">🎉 Satış Gerçekleşti (Kazanıldı)</option>
+                <option value="kaybedildi">❌ Vazgeçti / Başkasıyla Aldı</option>
+                <option value="pasif">⏸️ Pasif / Donduruldu</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>İlk İletişim Kaynağı</label>
+              <select id="cust-lead-source" class="form-control">
+                <option value="telefon" selected>📞 Telefonla Arama</option>
+                <option value="ilan">🌐 Sahibinden / İlan Portalı</option>
+                <option value="whatsapp">💬 WhatsApp Hattı</option>
+                <option value="ofis">🏢 Ofis Ziyareti</option>
+                <option value="tavsiye">👥 Tavsiye / Referans</option>
+                <option value="sosyal_medya">📱 Sosyal Medya</option>
+                <option value="diger">📋 Diğer</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Min. Bütçe (TL)</label>
+              <input type="number" id="cust-min-budget" class="form-control" placeholder="10000000" />
+            </div>
+
+            <div class="form-group">
+              <label>Maks. Bütçe (TL) *</label>
+              <input type="number" id="cust-budget" class="form-control" placeholder="14000000" required />
+            </div>
+
+            <div class="form-group">
+              <label>İstenen Oda Sayısı (Virgülle ayırın)</label>
+              <input type="text" id="cust-rooms" class="form-control" placeholder="Örn: 2+1, 3+1" />
+            </div>
+
+            <div class="form-group">
+              <label>Peşinat Tutarı</label>
+              <input type="number" id="cust-downpayment" class="form-control" placeholder="8000000" />
+            </div>
+
+            <div class="form-group">
+              <label>Satın Alma Zamanlaması</label>
+              <select id="cust-timeline" class="form-control">
+                <option value="hemen">Hemen / Acil</option>
+                <option value="1-3-ay" selected>1 – 3 Ay</option>
+                <option value="3-6-ay">3 – 6 Ay</option>
+                <option value="6-ay-uzeri">6+ Ay</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Alım Amacı</label>
+              <select id="cust-purpose" class="form-control">
+                <option value="oturum">Kendi Oturumu</option>
+                <option value="yatirim">Yatırım (Kira Getirisi)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Minimum Net Alan (m²)</label>
+              <input type="number" id="cust-min-area" class="form-control" placeholder="120" />
+            </div>
+
+            <div class="form-group">
+              <label>Maksimum Bina Yaşı</label>
+              <input type="number" id="cust-max-age" class="form-control" placeholder="10" />
+            </div>
+
+            <div class="form-group full">
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Tercih Ettiği İlçe ve Bölgeler (Virgülle ayırın)</span>
+                <span class="location-badge-pill">Van & Çevre İller</span>
+              </label>
+              <input type="text" id="cust-districts" class="form-control" placeholder="Örn: İpekyolu, Edremit, Tuşba, Kadıköy" />
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; align-items:center;">
+                <span style="font-size:11px; color:var(--text-muted);">Hızlı İlçe Ekle:</span>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.addDistrictToCustomer('İpekyolu')">+ İpekyolu (Van)</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.addDistrictToCustomer('Edremit')">+ Edremit (Van)</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.addDistrictToCustomer('Tuşba')">+ Tuşba (Van)</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.addDistrictToCustomer('Erciş')">+ Erciş (Van)</button>
+                <button type="button" class="neighborhood-quick-chip" onclick="App.addDistrictToCustomer('Gevaş')">+ Gevaş (Van)</button>
+              </div>
+            </div>
+
+            <div class="form-group full">
+              <label>Müşteri Talebi & Notlar</label>
+              <textarea id="cust-notes" class="form-control" placeholder="Müşterinin özel istekleri, site tercihi, taşınma sebebi..."></textarea>
+            </div>
+
+            <!-- ⚖️ KVKK ve İletişim İzinleri (Payidar Uyum) -->
+            <div class="form-group full" style="display:flex; flex-wrap:wrap; gap:16px; background:var(--bg-tertiary); padding:10px 14px; border-radius:var(--radius-md); border:1px solid var(--border-color);">
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;">
+                <input type="checkbox" id="cust-kvkk" checked /> ⚖️ KVKK Aydınlatma Metni Paylaşıldı
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;">
+                <input type="checkbox" id="cust-contact-perm" checked /> 📲 Telefon & WhatsApp İletişim İzni Alındı
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">İptal</button>
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Follow-up Form Modal -->
+  <div class="modal-backdrop" id="followup-form-modal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>Yeni Takip / Randevu Planla</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="followup-form">
+        <input type="hidden" id="fu-prop-id" />
+        <input type="hidden" id="fu-cust-id" />
+        <div class="modal-body">
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Görev Başlığı *</label>
+            <input type="text" id="fu-title" class="form-control" placeholder="Örn: Barış Bey'e Daire Gösterme" required />
+          </div>
+
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Görev Türü</label>
+            <select id="fu-type" class="form-control">
+              <option value="ziyaret">🏠 Ziyaret / Yer Gösterme</option>
+              <option value="geri-arama">📞 Geri Arama</option>
+              <option value="gorusme">🤝 Yüz Yüze Görüşme</option>
+              <option value="yapilacak">✅ Yapılacak İş</option>
+              <option value="diger">📋 Diğer</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Tarih ve Saat *</label>
+            <input type="datetime-local" id="fu-date" class="form-control" required />
+          </div>
+
+          <div class="form-group">
+            <label>Açıklama & Hatırlatma Notu</label>
+            <textarea id="fu-notes" class="form-control" placeholder="Randevu detayları, anahtar teslimi vb."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">İptal</button>
+          <button type="submit" class="btn btn-primary">Planla</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Property Detail Modal -->
+  <div class="modal-backdrop" id="property-detail-modal">
+    <div class="modal" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3>İlan Detayı & Yatırım Raporu</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="property-detail-body">
+        <!-- Dinamik dolacak -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel-btn">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Network & Mobile Info Modal -->
+  <div class="modal-backdrop" id="network-modal">
+    <div class="modal" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3>Mobil & Ağ Bağlantısı</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="network-modal-body">
+        <!-- Dinamik dolacak -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary modal-cancel-btn">Tamam</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SAAS MODALLARI ─────────────────────────────────── -->
+
+  <!-- 0. Kullanıcı & Rol Profil Modalı -->
+  <div class="modal-backdrop" id="user-profile-modal">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 id="profile-modal-title">👤 Kullanıcı & Yetki Profili</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="user-profile-modal-body">
+        <!-- Dinamik dolacak -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. Authentication Modal (Giriş & Kayıt) -->
+  <div class="modal-backdrop" id="auth-modal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 id="auth-modal-title">Giriş Yap</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Auth Tabs -->
+        <div style="display:flex; border-bottom:1px solid var(--border-color); margin-bottom:16px;">
+          <button type="button" class="btn btn-secondary auth-tab-btn active" id="auth-tab-login" onclick="App.setAuthTab('login')" style="flex:1; border-radius:0; border:none; border-bottom:2px solid var(--accent-emerald);">
+            Giriş Yap
+          </button>
+          <button type="button" class="btn btn-secondary auth-tab-btn" id="auth-tab-register" onclick="App.setAuthTab('register')" style="flex:1; border-radius:0; border:none;">
+            Yeni Şirket Kaydı
+          </button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="login-form" onsubmit="App.handleLogin(event)">
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>E-posta Adresi *</label>
+            <input type="email" id="login-email" class="form-control" placeholder="ad@sirketiniz.com" required />
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Parola *</label>
+            <input type="password" id="login-password" class="form-control" placeholder="••••••••" required />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">Giriş Yap</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" style="display:none;" onsubmit="App.handleRegister(event)">
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Adınız Soyadınız *</label>
+            <input type="text" id="reg-name" class="form-control" placeholder="Mehmet Kaya" required />
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>E-posta Adresi *</label>
+            <input type="email" id="reg-email" class="form-control" placeholder="mehmet@kayaemlak.com" required />
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Parola *</label>
+            <input type="password" id="reg-password" class="form-control" placeholder="En az 6 karakter" required minlength="6" />
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label>Emlak Şirketi / Ofis Ünvanı *</label>
+            <input type="text" id="reg-company-name" class="form-control" placeholder="Kaya Gayrimenkul A.Ş." required />
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Şehir</label>
+            <input type="text" id="reg-city" class="form-control" placeholder="İstanbul" value="İstanbul" />
+          </div>
+          <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding:12px;">Şirketimi Oluştur ve Başla</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Company Switcher Modal -->
+  <div class="modal-backdrop" id="company-switcher-modal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>Şirket Değiştir</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">Hesabınızın bağlı olduğu şirketler arasında geçiş yapın:</p>
+        <div id="company-switcher-list" style="display:flex; flex-direction:column; gap:8px;">
+          <!-- Dinamik şirketler -->
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button class="btn btn-secondary" onclick="App.openUserAuthModal('register')">+ Yeni Şirket Ekle</button>
+        <button class="btn btn-secondary modal-cancel-btn">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Invite Member Modal -->
+  <div class="modal-backdrop" id="invite-member-modal">
+    <div class="modal" style="max-width: 480px; height: auto !important; max-height: 85vh;">
+      <div class="modal-header">
+        <h3>Ekibe Yeni Çalışan Davet Et</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="invite-member-form" onsubmit="App.handleSendInvitation(event)">
+        <div class="modal-body" style="padding:22px;">
+          <!-- Form Alanları -->
+          <div id="invite-form-fields">
+            <div class="form-group" style="margin-bottom:14px;">
+              <label>Çalışanın E-posta Adresi *</label>
+              <input type="email" id="invite-email" class="form-control" placeholder="danisman@sirketiniz.com" required />
+            </div>
+            <div class="form-group" style="margin-bottom:16px;">
+              <label>Atanacak Rol *</label>
+              <select id="invite-role" class="form-control">
+                <option value="agent">Gayrimenkul Danışmanı (Sadece kendi portföyü ve ortak havuz)</option>
+                <option value="admin">Şirket Yöneticisi (Tüm şirket portföyü ve çalışan davetleri)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Başarılı Sonuç Alanı (Büyük, Net ve Anında Test Edilebilir) -->
+          <div id="invite-result-area" style="display:none; text-align:center; padding:18px 14px; background:#E8F8F5; border:1px solid #A3E4D7; border-radius:var(--radius-sm);">
+            <div style="font-size:38px; margin-bottom:8px;">🎉</div>
+            <h4 style="font-size:16px; font-weight:800; color:var(--accent-emerald); margin-bottom:6px;">Davet Bağlantısı Hazır!</h4>
+            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:14px;" id="invite-result-desc">
+              Bu bağlantıyı kopyalayıp personele gönderebilir veya doğrudan yeni sekmede açarak testi yapabilirsiniz.
+            </p>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <input type="text" id="invite-generated-link" class="form-control" readonly onclick="this.select();" style="font-size:11px; background:var(--bg-tertiary); font-weight:600; text-overflow:ellipsis;" />
+              <button type="button" class="btn btn-secondary" style="font-size:12px; white-space:nowrap; padding:8px 14px;" onclick="App.copyInviteUrl(document.getElementById('invite-generated-link').value)">
+                📋 Kopyala
+              </button>
+            </div>
+            <div style="display:flex; justify-content:center; gap:10px;">
+              <button type="button" class="btn btn-primary" style="font-size:13px; font-weight:700; padding:10px 18px;" onclick="window.open(document.getElementById('invite-generated-link').value, '_blank'); App.showToast('Yeni sekmede davet kabul ekranı açıldı! 🚀');">
+                🚀 Yeni Sekmede Aç ve Katıl
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Kapat</button>
+          <button type="submit" class="btn btn-primary" id="btn-create-invite">Davet Bağlantısı Oluştur</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. Share Property Modal (B2B Havuz Paylaşım Ayarı) -->
+  <div class="modal-backdrop" id="share-property-modal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>İlanı B2B Ortak Havuzda Paylaş</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="share-property-form" onsubmit="App.handleConfirmShareProperty(event)">
+        <input type="hidden" id="share-prop-id" />
+        <div class="modal-body">
+          <p id="share-prop-title-text" style="font-size:13px; font-weight:700; color:var(--accent-emerald); margin-bottom:12px;"></p>
+          <div class="form-group" style="margin-bottom:12px;">
+            <label>Paylaşım Kapsamı</label>
+            <select id="share-prop-target-type" class="form-control">
+              <option value="all_members">Tüm Platform Üyesi Emlak Şirketleri (Açık B2B Havuz)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:16px;">
+            <label>Komisyon Paylaşım Oranı</label>
+            <select id="share-prop-split" class="form-control">
+              <option value="50-50">%50 - %50 Eşit Paylaşım</option>
+              <option value="60-40">%60 Portföy Sahibi - %40 Müşteri Temsilcisi</option>
+              <option value="70-30">%70 Portföy Sahibi - %30 Müşteri Temsilcisi</option>
+              <option value="gorusulur">Özel / Görüşülür</option>
+            </select>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); background:var(--bg-tertiary); padding:10px; border-radius:var(--radius-md);">
+            ℹ️ Bu ilanı paylaştığınızda diğer emlak şirketleri mülkü görebilir, müşteri eşleştirmesi yapabilir ve sizinle iletişime geçebilir. İstediğiniz an tek tıkla paylaşımı iptal edebilirsiniz.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Vazgeç</button>
+          <button type="submit" class="btn btn-primary" id="btn-confirm-share-prop">Ortak Havuzda Paylaş</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. Share Customer Modal (B2B Talep Havuzu & KVKK) -->
+  <div class="modal-backdrop" id="share-customer-modal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>Müşteri Talebini B2B Havuzda Paylaş</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="share-customer-form" onsubmit="App.handleConfirmShareCustomer(event)">
+        <input type="hidden" id="share-cust-id" />
+        <div class="modal-body">
+          <p id="share-cust-name-text" style="font-size:13px; font-weight:700; color:var(--accent-emerald); margin-bottom:12px;"></p>
+          <div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:var(--radius-sm); padding:12px; margin-bottom:14px; font-size:12px;">
+            <div style="font-weight:700; color:var(--accent-rose); margin-bottom:4px;">🔒 KVKK Güvencesi:</div>
+            Müşterinin <strong>telefonu, e-postası ve özel notları gizlenecektir.</strong> Sadece bütçe, aranan bölge ve oda tercihleri paylaşılacaktır.
+          </div>
+          <div class="form-group" style="margin-bottom:14px;">
+            <label>Hukuki Dayanak / Rıza Notu</label>
+            <input type="text" id="share-cust-legal-note" class="form-control" value="KVKK Açık Rıza ve Hizmet Sözleşmesi Gereği İzinli Talep Eşleştirme" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Vazgeç</button>
+          <button type="submit" class="btn btn-primary">Talebi Havuzda Paylaş</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. Kullanıcı Sözleşmesi Modalı -->
+  <div class="modal-backdrop" id="terms-modal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Emlak Takip CRM — Kullanıcı Sözleşmesi ve B2B SaaS Şartları</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto; font-size: 13px; line-height: 1.6; color: var(--text-secondary);">
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">1. Taraflar ve Hizmet Kapsamı</h4>
+        <p style="margin-bottom:12px;">
+          İşbu sözleşme, Emlak Takip SaaS platformuna üye olan gayrimenkul şirketleri, danışmanlar ve platform işleticisi arasında akdedilmiştir. Platform, emlak işletmelerine bulut tabanlı portföy takibi, müşteri ilişkileri yönetimi (CRM) ve B2B ortak ilan/talep havuzu paylaşım altyapısı sağlar.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">2. Veri İzolasyonu ve Mülkiyeti</h4>
+        <p style="margin-bottom:12px;">
+          Her emlak şirketi, platforma yüklediği özel ilanların, şirket içi müşteri kayıtlarının ve notlarının yegane sahibidir. Şirketin açık izni olmadan hiçbir veri üçüncü taraflara veya rakip şirketlere ifşa edilemez.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">3. B2B Ortak İlan Havuzu ve Komisyon Paylaşımı İlkeleri</h4>
+        <p style="margin-bottom:12px;">
+          B2B Ortak Havuz'a paylaşılan ilanlar ve müşteri talepleri, aksi yazılı olarak kararlaştırılmadıkça %50 - %50 eşit komisyon paylaşımı esasına tabidir. Ortak ağ üzerinden gerçekleşen gayrimenkul satış veya kiralama işlemlerinde mesleki etik ve dürüstlük kurallarına uyulması esastır.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">4. Hesap Güvenliği</h4>
+        <p>
+          Kullanıcı, oturum açma kimlik bilgilerinin gizliliğini korumaktan sorumludur. Parolalar sunucuda tuzlanmış scrypt hash olarak saklanır ve sistem yöneticileri dahil kimse tarafından düz metin olarak görülemez.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary modal-cancel-btn">Okudum, Anladım</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. KVKK Aydınlatma Metni Modalı -->
+  <div class="modal-backdrop" id="kvkk-modal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>KVKK Kapsamında Kişisel Verilerin Korunması Aydınlatma Metni</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 400px; overflow-y: auto; font-size: 13px; line-height: 1.6; color: var(--text-secondary);">
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">1. Veri Sorumlusu</h4>
+        <p style="margin-bottom:12px;">
+          6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, Emlak Takip CRM SaaS platformu veri işleyen ve veri sorumlusu sıfatıyla hareket etmektedir.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">2. İşlenen Kişisel Veriler ve Amaçları</h4>
+        <p style="margin-bottom:12px;">
+          Platformda yalnızca hizmetin ifası için gerekli olan ad, soyad, telefon, e-posta, şirket bilgileri ve gayrimenkul talep tercihleri işlenmektedir. Müşteri verileri, açık rıza ve sözleşmesel zorunluluk çerçevesinde CRM sisteminde saklanır.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">3. B2B Havuzda Otomatik Veri Maskeleme</h4>
+        <p style="margin-bottom:12px;">
+          Platformumuz, müşterilerin kişisel iletişim bilgilerini (telefon, e-posta, açık adres) B2B Ortak Havuz'a aktarırken otomatik olarak maskeler. Diğer üye acenteler yalnızca bütçe aralığı ve genel aranan bölge kriterlerini görebilir; doğrudan kişisel veriye erişemez.
+        </p>
+
+        <h4 style="color:var(--text-primary); margin-bottom:8px;">4. Veri Sahibinin Hakları</h4>
+        <p>
+          KVKK Madde 11 uyarınca her kullanıcı ve kayıtlı müşteri, kişisel verilerinin silinmesini, düzeltilmesini ve işlenme amacını öğrenme hakkına sahiptir. Talepleriniz anında işleme alınır.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary modal-cancel-btn">Kapat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. Şifremi Unuttum Modalı -->
+  <div class="modal-backdrop" id="forgot-password-modal">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>Parola Sıfırlama ve Destek</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="forgot-password-form" onsubmit="App.handleForgotPassword(event)">
+        <div class="modal-body">
+          <p style="font-size:13px; color:var(--text-secondary); margin-bottom:14px;">
+            Kayıtlı şirket e-posta adresinizi girin. Güvenli parola sıfırlama yönergesi sistem yöneticinize iletilecektir.
+          </p>
+          <div class="form-group-custom">
+            <label>Kayıtlı İş E-postanız *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">✉️</span>
+              <input type="email" id="forgot-email" class="custom-input" placeholder="admin@emlaktakip.com" required />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Vazgeç</button>
+          <button type="submit" class="btn btn-primary">Sıfırlama Talebi Gönder</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 9. Davet Kabul Modalı (Invite Accept Modal) -->
+  <div class="modal-backdrop" id="accept-invite-modal" style="z-index: 999999;">
+    <div class="modal" style="max-width: 460px; height: auto !important; max-height: 90vh;">
+      <div class="modal-header">
+        <div>
+          <h3 style="display:flex; align-items:center; gap:8px;">
+            <span>🏢</span> <span id="accept-invite-company-title">Ekip Davetini Kabul Edin</span>
+          </h3>
+          <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;" id="accept-invite-subtitle">Emlak Ofisi CRM Ekibine Katılım</div>
+        </div>
+        <button class="modal-close-btn" onclick="document.getElementById('accept-invite-modal').classList.remove('open')">&times;</button>
+      </div>
+      <form id="accept-invite-form" onsubmit="App.handleAcceptInvitationSubmit(event)">
+        <input type="hidden" id="accept-invite-token" />
+        <div class="modal-body" style="padding: 22px;">
+          <!-- Davet Bilgi Rozeti -->
+          <div id="accept-invite-info-box" style="padding: 12px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 12.5px;">
+            <div style="font-weight: 700; color: var(--accent-emerald); margin-bottom: 3px;" id="accept-invite-box-company">Davet Doğrulanıyor...</div>
+            <div style="color: var(--text-secondary);" id="accept-invite-box-email">Hesabınızı oluşturarak hemen CRM sistemine erişebilirsiniz.</div>
+          </div>
+
+          <div class="form-group-custom" style="margin-bottom:12px;">
+            <label>Adınız ve Soyadınız *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">👤</span>
+              <input type="text" id="accept-invite-fullname" class="custom-input" placeholder="Ahmet Yılmaz" required />
+            </div>
+          </div>
+          <div class="form-group-custom" style="margin-bottom:12px;">
+            <label>Telefon Numaranız</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">📱</span>
+              <input type="tel" id="accept-invite-phone" class="custom-input" placeholder="0532 123 4567" />
+            </div>
+          </div>
+          <div class="form-group-custom" style="margin-bottom:16px;">
+            <label>Hesap Parolanız *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">🔒</span>
+              <input type="password" id="accept-invite-password" class="custom-input" placeholder="En az 6 karakter" required minlength="6" />
+              <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('accept-invite-password', this)">👁️</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Kapat</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-accept-invite" style="padding: 10px 20px; font-weight: 700;">
+            <span>Hesabımı Oluştur ve Katıl</span>
+            <span class="btn-arrow">➔</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 8. Şifre Değiştirme Modalı -->
+  <div class="modal-backdrop" id="modal-change-password">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;"><span>🔒</span> Parola Değiştir</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="change-password-form" onsubmit="App.handleConfirmChangePassword(event)">
+        <div class="modal-body">
+          <div class="form-group-custom" style="margin-bottom:14px;">
+            <label>Mevcut Parolanız *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">🔑</span>
+              <input type="password" id="cp-current-password" class="custom-input" placeholder="Mevcut parolanız" required />
+              <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('cp-current-password', this)">👁️</button>
+            </div>
+          </div>
+          <div class="form-group-custom" style="margin-bottom:14px;">
+            <label>Yeni Parolanız *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">🔒</span>
+              <input type="password" id="cp-new-password" class="custom-input" placeholder="En az 6 karakter" required minlength="6" />
+              <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('cp-new-password', this)">👁️</button>
+            </div>
+          </div>
+          <div class="form-group-custom" style="margin-bottom:14px;">
+            <label>Yeni Parola Tekrarı *</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">🔒</span>
+              <input type="password" id="cp-new-password-confirm" class="custom-input" placeholder="Yeni parolanızı tekrar giriniz" required minlength="6" />
+              <button type="button" class="toggle-password-btn" onclick="App.togglePasswordVisibility('cp-new-password-confirm', this)">👁️</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn">Vazgeç</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-change-password" style="font-weight:700;">
+            <span>Parolayı Güncelle</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 9. Departman Oluştur / Düzenle Modalı -->
+  <div class="modal-backdrop" id="modal-department">
+    <div class="modal" style="max-width: 620px;">
+      <div class="modal-header">
+        <h3 id="modal-department-title" style="display:flex; align-items:center; gap:8px;"><span>🏛️</span> Yeni Departman Oluştur</h3>
+        <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-department').classList.remove('open')">&times;</button>
+      </div>
+      <form id="department-form" onsubmit="App.handleSaveDepartment(event)">
+        <input type="hidden" id="dept-edit-id" value="" />
+        <div class="modal-body" style="max-height: calc(85vh - 140px); overflow-y:auto; padding: 20px;">
+          
+          <div style="background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:16px; font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:8px;">
+            <span>ℹ️</span>
+            <span>Departmanınızı dilediğiniz kriter ve uzmanlık alanına göre yapılandırabilir, danışmanlarınızı görevlendirebilirsiniz.</span>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 3fr 1fr; gap:12px; margin-bottom:14px;">
+            <div class="form-group-custom">
+              <label>Departman Adı *</label>
+              <div class="input-icon-wrap">
+                <span class="field-icon">🏷️</span>
+                <input type="text" id="dept-name-input" class="custom-input" placeholder="örn: Lüks Konut & Yalı, Ticari & Sanayi..." required />
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label>İkon / Emoji</label>
+              <input type="text" id="dept-icon-input" class="custom-input" value="🏛️" style="text-align:center; font-size:18px;" />
+            </div>
+          </div>
+
+          <!-- Hızlı İkon Seçimi -->
+          <div style="margin-bottom:14px;">
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:6px;">Hızlı İkon Seçin:</label>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🏰')" style="padding:4px 8px; font-size:14px;">🏰</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🏢')" style="padding:4px 8px; font-size:14px;">🏢</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🌲')" style="padding:4px 8px; font-size:14px;">🌲</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🏭')" style="padding:4px 8px; font-size:14px;">🏭</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('💎')" style="padding:4px 8px; font-size:14px;">💎</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('💼')" style="padding:4px 8px; font-size:14px;">💼</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🔑')" style="padding:4px 8px; font-size:14px;">🔑</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🌍')" style="padding:4px 8px; font-size:14px;">🌍</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🏠')" style="padding:4px 8px; font-size:14px;">🏠</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('📈')" style="padding:4px 8px; font-size:14px;">📈</button>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="App.setDeptIcon('🤝')" style="padding:4px 8px; font-size:14px;">🤝</button>
+            </div>
+          </div>
+
+          <!-- Tema Rengi Seçimi -->
+          <div style="margin-bottom:14px;">
+            <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:6px;">Tema Rengi:</label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <input type="color" id="dept-color-picker" value="#10b981" style="width:36px; height:32px; border:none; background:none; cursor:pointer;" onchange="App.setDeptColor(this.value)" />
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#10b981; color:#10b981;" onclick="App.setDeptColor('#10b981')">● Zümrüt</button>
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#0ea5e9; color:#0ea5e9;" onclick="App.setDeptColor('#0ea5e9')">● Mavi</button>
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#8b5cf6; color:#8b5cf6;" onclick="App.setDeptColor('#8b5cf6')">● Mor</button>
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#f59e0b; color:#f59e0b;" onclick="App.setDeptColor('#f59e0b')">● Kehribar</button>
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#f43f5e; color:#f43f5e;" onclick="App.setDeptColor('#f43f5e')">● Gül</button>
+              <button type="button" class="btn btn-secondary btn-sm" style="border-color:#06b6d4; color:#06b6d4;" onclick="App.setDeptColor('#06b6d4')">● Turkuaz</button>
+              <input type="hidden" id="dept-color-input" value="#10b981" />
+            </div>
+          </div>
+
+          <!-- Departman Lideri -->
+          <div class="form-group-custom" style="margin-bottom:14px;">
+            <label>Departman Sorumlusu / Lider Danışman</label>
+            <div class="input-icon-wrap">
+              <span class="field-icon">👑</span>
+              <select id="dept-leader-select" class="custom-input">
+                <option value="">Lider Atanmadı (Opsiyonel)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Açıklama -->
+          <div class="form-group-custom" style="margin-bottom:16px;">
+            <label>Departman Açıklaması / Misyonu</label>
+            <textarea id="dept-desc-input" class="custom-input" rows="2" placeholder="Departmanın görev alanı, yetki sınırları veya genel hedefleri..."></textarea>
+          </div>
+
+          <!-- ═════ ÖZELLEŞTİRİLEBİLİR KRİTERLER BÖLÜMÜ ═════ -->
+          <div style="background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px; margin-bottom:14px;">
+            <div style="font-weight:700; font-size:13px; color:var(--text-primary); margin-bottom:10px; display:flex; align-items:center; gap:6px;">
+              <span>🎯</span> Özel Kriterler & Hedefler (Yönetici Tarafından Özelleştirilebilir)
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:10px;">
+              <div class="form-group-custom">
+                <label>Odak Alanı / Portföy Tipi</label>
+                <input type="text" id="dept-crit-focustype" class="custom-input" placeholder="örn: Lüks Konut, Villa, Rezidans" />
+              </div>
+              <div class="form-group-custom">
+                <label>Hedef Bölge / Kapsam</label>
+                <input type="text" id="dept-crit-region" class="custom-input" placeholder="örn: Kadıköy & Ataşehir Hattı" />
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="form-group-custom">
+                <label>Aylık Satış / Ciro Hedefi</label>
+                <input type="text" id="dept-crit-target" class="custom-input" placeholder="örn: 5.000.000 ₺ / Ay" />
+              </div>
+              <div class="form-group-custom">
+                <label>Standart Komisyon Oranı</label>
+                <input type="text" id="dept-crit-split" class="custom-input" placeholder="örn: %50 / %50" value="50/50" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn" onclick="document.getElementById('modal-department').classList.remove('open')">Vazgeç</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-department" style="font-weight:700;">
+            <span>Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 10. Departmana Danışman Atama Modalı -->
+  <div class="modal-backdrop" id="modal-assign-dept-members">
+    <div class="modal" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 id="modal-assign-dept-title" style="display:flex; align-items:center; gap:8px;"><span>👥</span> Danışman Görevlendir</h3>
+        <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-assign-dept-members').classList.remove('open')">&times;</button>
+      </div>
+      <form id="assign-dept-members-form" onsubmit="App.handleSaveAssignDeptMembers(event)">
+        <input type="hidden" id="assign-dept-target-id" value="" />
+        <div class="modal-body" style="max-height: 400px; overflow-y:auto; padding:18px;">
+          <p id="assign-dept-desc-text" style="font-size:12.5px; color:var(--text-muted); margin-bottom:14px;"></p>
+          <div id="assign-dept-members-checklist" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- Checkbox'lar -->
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn" onclick="document.getElementById('modal-assign-dept-members').classList.remove('open')">Vazgeç</button>
+          <button type="submit" class="btn btn-primary" style="font-weight:700;">
+            <span>Atamaları Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 11. Danışmana Hızlı Departman Seçme Modalı -->
+  <div class="modal-backdrop" id="modal-member-quick-dept">
+    <div class="modal" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 style="display:flex; align-items:center; gap:8px;"><span>🏛️</span> Danışman Departmanı</h3>
+        <button type="button" class="modal-close-btn" onclick="document.getElementById('modal-member-quick-dept').classList.remove('open')">&times;</button>
+      </div>
+      <form id="member-quick-dept-form" onsubmit="App.handleSaveMemberQuickDept(event)">
+        <input type="hidden" id="quick-dept-member-id" value="" />
+        <div class="modal-body" style="padding:18px;">
+          <p id="quick-dept-member-name" style="font-weight:700; margin-bottom:12px; color:var(--text-primary);"></p>
+          <div class="form-group-custom">
+            <label>Atanacak Departman</label>
+            <select id="quick-dept-select" class="custom-input">
+              <option value="">Departmansız (Genel Portföy)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-cancel-btn" onclick="document.getElementById('modal-member-quick-dept').classList.remove('open')">Vazgeç</button>
+          <button type="submit" class="btn btn-primary" style="font-weight:700;">
+            <span>Kaydet</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="./js/api.js?v=11"></script>
+  <script src="./js/locations.js?v=11"></script>
+  <script src="./js/matching.js?v=11"></script>
+  <script src="./js/app.js?v=11"></script>
+</body>
+</html>
