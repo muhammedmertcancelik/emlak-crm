@@ -1,177 +1,151 @@
-/**
- * ============================================================================
- * EMLAK TAKİP CRM - KİMLİK DOĞRULAMA, OTURUM & YETKİLENDİRME MODÜLÜ
- * Versiyon: 2.0.0
- * 
- * Standart Node.js 'crypto' modülü ile geliştirilmiş:
- * - HMAC-SHA256 imzalı güvenli oturum token (Stateless Auth Token)
- * - scrypt tuzlu parola hashleme ve zamanlama korumalı doğrulama
- * - Çok şirketli (multi-tenant) bağlam ve rol bazlı yetkilendirme middleware
- * ============================================================================
- */
-
-const crypto = require('crypto');
-
-// Sunucu tarafı token imzalama anahtarı (Ortam değişkeni yoksa rastgele oturum anahtarı)
-const JWT_SECRET = process.env.JWT_SECRET || 'emlak-crm-secure-token-secret-key-2026-v2';
-const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 gün
-
-// ─── Kriptografik Yardımcılar ─────────────────────────────────
-
+﻿"use strict";
+const crypto = require("node:crypto");
+const { readDB } = require("./db");
+if (
+  process.env.NODE_ENV === "production" &&
+  (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)
+) {
+  throw new Error("Üretimde JWT_SECRET en az 32 karakter olmalıdır.");
+}
+const SECRET = process.env.JWT_SECRET || crypto.randomBytes(48).toString("hex");
+const TOKEN_EXPIRY_MS = 8 * 60 * 60 * 1000;
+const revoked = new Map();
 function hashPassword(password) {
-  if (!password || typeof password !== 'string' || password.length < 6) {
-    throw new Error('Parola en az 6 karakter olmalıdır.');
+  if (
+    typeof password !== "string" ||
+    password.length < 12 ||
+    password.length > 256
+  ) {
+    const error = new Error("Parola 12–256 karakter arasında olmalıdır.");
+    error.status = 400;
+    throw error;
   }
-  const salt = crypto.randomBytes(16).toString('hex');
-  const derivedKey = crypto.scryptSync(password, salt, 64);
-  return `scrypt:${salt}:${derivedKey.toString('hex')}`;
+  const salt = crypto.randomBytes(16).toString("hex");
+  return `scrypt:${salt}:${crypto.scryptSync(password, salt, 64).toString("hex")}`;
 }
-
 function verifyPassword(password, storedHash) {
-  if (!storedHash || !storedHash.startsWith('scrypt:')) return false;
-  const parts = storedHash.split(':');
-  if (parts.length !== 3) return false;
-  const [, salt, originalHash] = parts;
-
-  const derivedKey = crypto.scryptSync(password, salt, 64);
-  const keyBuffer = Buffer.from(derivedKey.toString('hex'), 'hex');
-  const originalBuffer = Buffer.from(originalHash, 'hex');
-
-  if (keyBuffer.length !== originalBuffer.length) return false;
-  return crypto.timingSafeEqual(keyBuffer, originalBuffer);
+  if (
+    typeof password !== "string" ||
+    password.length > 256 ||
+    typeof storedHash !== "string"
+  )
+    return false;
+  const parts = storedHash.split(":");
+  if (
+    parts.length !== 3 ||
+    parts[0] !== "scrypt" ||
+    !/^[a-f0-9]{32}$/i.test(parts[1]) ||
+    !/^[a-f0-9]{128}$/i.test(parts[2])
+  )
+    return false;
+  return crypto.timingSafeEqual(
+    crypto.scryptSync(password, parts[1], 64),
+    Buffer.from(parts[2], "hex"),
+  );
 }
-
-// ─── Güvenli Token Üretimi & Doğrulaması ──────────────────────
-
-function base64UrlEncode(str) {
-  return Buffer.from(str)
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-}
-
-function base64UrlDecode(str) {
-  str = str.replace(/-/g, '+').replace(/_/g, '/');
-  while (str.length % 4) str += '=';
-  return Buffer.from(str, 'base64').toString('utf8');
-}
-
 function createToken(payload) {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const encodedHeader = base64UrlEncode(JSON.stringify(header));
-  const fullPayload = {
-    ...payload,
-    iat: Date.now(),
-    exp: Date.now() + TOKEN_EXPIRY_MS
-  };
-  const encodedPayload = base64UrlEncode(JSON.stringify(fullPayload));
-  const signature = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(`${encodedHeader}.${encodedPayload}`)
-    .digest('base64url');
-
-  return `${encodedHeader}.${encodedPayload}.${signature}`;
+  const user = (readDB().users || []).find((u) => u.id === payload.userId);
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const body = Buffer.from(
+    JSON.stringify({
+      ...payload,
+      version: user?.authVersion || 0,
+      jti: crypto.randomUUID(),
+      iat: Date.now(),
+      exp: Date.now() + TOKEN_EXPIRY_MS,
+    }),
+  ).toString("base64url");
+  return `${header}.${body}.${crypto.createHmac("sha256", SECRET).update(`${header}.${body}`).digest("base64url")}`;
 }
-
 function verifyToken(token) {
-  if (!token || typeof token !== 'string') return null;
-  const parts = token.split('.');
+  if (typeof token !== "string" || token.length > 4096) return null;
+  const parts = token.split(".");
   if (parts.length !== 3) return null;
-
-  const [encodedHeader, encodedPayload, signature] = parts;
-  const expectedSignature = crypto
-    .createHmac('sha256', JWT_SECRET)
-    .update(`${encodedHeader}.${encodedPayload}`)
-    .digest('base64url');
-
-  if (signature !== expectedSignature) return null;
-
   try {
-    const payload = JSON.parse(base64UrlDecode(encodedPayload));
-    if (payload.exp && Date.now() > payload.exp) {
-      return null; // Süresi dolmuş
-    }
+    const [head, body, signature] = parts;
+    const expected = crypto
+      .createHmac("sha256", SECRET)
+      .update(`${head}.${body}`)
+      .digest();
+    const actual = Buffer.from(signature, "base64url");
+    if (
+      actual.length !== expected.length ||
+      !crypto.timingSafeEqual(actual, expected)
+    )
+      return null;
+    const header = JSON.parse(Buffer.from(head, "base64url"));
+    const payload = JSON.parse(Buffer.from(body, "base64url"));
+    if (
+      header.alg !== "HS256" ||
+      !Number.isFinite(payload.exp) ||
+      payload.exp <= Date.now() ||
+      !payload.jti ||
+      revoked.has(payload.jti)
+    )
+      return null;
     return payload;
-  } catch (err) {
+  } catch {
     return null;
   }
 }
-
-// ─── Kimlik ve Şirket Bağlamı Doğrulama (Auth Middleware) ────
-
-/**
- * İstekten oturum açmış kullanıcıyı ve aktif şirket üyeliğini tespit eder.
- * @param {Object} req - HTTP Request
- * @param {Object} db - Aktif database verisi
- * @returns {Object|null} { user, company, membership } veya null
- */
+function requestToken(req) {
+  const authorization = req.headers.authorization || "";
+  if (authorization.startsWith("Bearer ")) return authorization.slice(7).trim();
+  const cookie = (req.headers.cookie || "")
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith("crm_session="));
+  return cookie ? cookie.slice("crm_session=".length) : "";
+}
+function revokeSession(req) {
+  const payload = verifyToken(requestToken(req));
+  for (const [id, expires] of revoked)
+    if (expires <= Date.now()) revoked.delete(id);
+  if (payload) revoked.set(payload.jti, payload.exp);
+}
+function sessionCookie(token = "") {
+  return `crm_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${token ? TOKEN_EXPIRY_MS / 1000 : 0}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+}
 function resolveAuthContext(req, db) {
-  const authHeader = req.headers['authorization'] || '';
-  let token = null;
-
-  if (authHeader.startsWith('Bearer ')) {
-    token = authHeader.slice(7).trim();
-  }
-
-  // Header yoksa cookie kontrolü
-  if (!token && req.headers['cookie']) {
-    const cookies = req.headers['cookie'].split(';').map(c => c.trim());
-    const authCookie = cookies.find(c => c.startsWith('token='));
-    if (authCookie) {
-      token = decodeURIComponent(authCookie.split('=')[1]);
-    }
-  }
-
-  if (!token) return null;
-
-  const payload = verifyToken(token);
-  if (!payload || !payload.userId) return null;
-
-  const user = (db.users || []).find(u => u.id === payload.userId && u.status === 'active');
-  if (!user) return null;
-
-  // İstenen veya aktif şirket
-  const requestedCompanyId = req.headers['x-company-id'] || payload.companyId;
-
-  // Kullanıcının üyeliklerini bul
-  const memberships = (db.companyMemberships || []).filter(
-    m => m.userId === user.id && m.status === 'active'
+  const payload = verifyToken(requestToken(req));
+  if (!payload?.userId) return null;
+  const user = (db.users || []).find(
+    (u) => u.id === payload.userId && u.status === "active",
   );
-
-  let activeMembership = null;
-  if (requestedCompanyId) {
-    activeMembership = memberships.find(m => m.companyId === requestedCompanyId);
-  }
-  if (!activeMembership && memberships.length > 0) {
-    activeMembership = memberships.find(m => m.isCurrent) || memberships[0];
-  }
-
-  let company = null;
-  if (activeMembership) {
-    company = (db.companies || []).find(c => c.id === activeMembership.companyId && c.status === 'active');
-  }
-
+  if (!user || (user.authVersion || 0) !== payload.version) return null;
+  const memberships = (db.companyMemberships || []).filter(
+    (m) => m.userId === user.id && m.status === "active",
+  );
+  const companyId = req.headers["x-company-id"] || payload.companyId;
+  const membership = memberships.find((m) => m.companyId === companyId);
+  const company =
+    membership &&
+    (db.companies || []).find(
+      (c) => c.id === membership.companyId && c.status === "active",
+    );
+  if (!company) return null;
   return {
     user: {
       id: user.id,
       email: user.email,
       fullName: user.fullName,
       phone: user.phone,
-      isPlatformAdmin: Boolean(user.isPlatformAdmin),
-      mustChangePassword: Boolean(user.mustChangePassword)
+      mustChangePassword: Boolean(user.mustChangePassword),
     },
     company,
-    membership: activeMembership,
-    companyId: company ? company.id : null,
-    memberships
+    membership,
+    companyId: company.id,
+    memberships,
   };
 }
-
 module.exports = {
   hashPassword,
   verifyPassword,
   createToken,
   verifyToken,
-  resolveAuthContext
+  resolveAuthContext,
+  revokeSession,
+  sessionCookie,
 };

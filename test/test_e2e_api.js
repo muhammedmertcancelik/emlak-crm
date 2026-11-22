@@ -150,6 +150,7 @@ async function runE2ETests() {
         phone: '0532 111 2233',
         email: 'kemal.guven@gizli.com',
         totalBudget: 50000000,
+        kvkkConsent: true,
         preferredRooms: ['5+2'],
         preferredDistricts: ['Sarıyer'],
         purpose: 'oturum'

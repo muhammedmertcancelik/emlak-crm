@@ -114,7 +114,7 @@ async function runSecurityTestSuite() {
     };
     const resolvedAuth = resolveAuthContext(fakeRequest, currentDB);
     // resolvedAuth kullanıcının üye olmadığı şirkete geçememeli
-    const isTamperingBlocked = resolvedAuth && resolvedAuth.companyId === compBId && resolvedAuth.companyId !== compAId;
+    const isTamperingBlocked = resolvedAuth === null;
     recordTest(
       'TEST 2: Tenant Tampering (İstemci Başlık Manipülasyon Engeli)',
       'Şirket B kullanıcısı istek başlığında X-Company-Id: comp-A gönderdiğinde resolveAuthContext denetlendi.',

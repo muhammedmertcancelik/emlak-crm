@@ -1,10 +1,6 @@
 @echo off
-title Emlak Takip CRM Web Sunucusu
+title Payidar CRM
 cd /d "%~dp0"
-echo ===================================================
-echo   EMLAK TAKIP CRM - ONLİNE WEB SUNUCUSU
-echo ===================================================
-echo PC ve Mobilden online erisim baslatiliyor...
-echo.
+echo Payidar CRM - http://localhost:3000
 node server/index.js
 pause
