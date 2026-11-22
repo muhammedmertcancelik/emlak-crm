@@ -79,3 +79,22 @@ npm test
 Testler işletim sisteminin geçici klasöründe ayrı veri dosyaları kullanır. Ana veritabanının değişmediği ayrıca kontrol edilir. Paket; şirket izolasyonu, API iş akışları, oturum iptali, CSRF, parola atlatma, davet yarışı, alan yetkileri, ortak ağ veri maskelemesi, geri yükleme ve 12 DOM kullanıcı akışını kapsar. DOM testleri gerçek tarayıcıdaki piksel yerleşimini doğrulamaz.
 
 Güvenlik yaklaşımı için: [OWASP oturum yönetimi](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html) ve [REST güvenliği](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html).
+
+
+## Üç panel ve broker işlemleri
+
+Broker paneli mevcut owner ve admin rollerini kullanır. Danışman agent, sekreter secretary rolündedir. Broker bütün ofis kayıtlarını görür ve atar. Danışman kendisine atanmış kayıtları görür ve düzenler. Sekreter ofis kayıtlarını görüntüler, kendi kayıtlarını ve görevlerini oluşturur. Muhasebe, satış, personel oluşturma ve ağ anahtarları broker yetkisi gerektirir.
+
+Şirket ve ekip ekranındaki Danışman oluştur formunda kullanıcı adı, en az 12 karakterli parola, rol ve departman seçilir. Aynı danışman tek departmana bağlıdır. Departmanı eksik eski aktif çalışanlar sonraki veri kaydında Genel danışmanlık departmanına alınır. Broker departman ürün, işlem, oda ve bölge kriterlerini seçer. Kayıt ataması bu kriterlerle sunucuda kontrol edilir.
+
+Satış bitirme ekranı brüt komisyon, kesintiler, dağıtılacak tutar ve şirket/departman yüzdelerini kaydeder. Yüzdeler toplamı 100 olmalıdır. Para hesapları kuruş cinsindedir. Şirket kasasına kalan, net gelirden departman payları çıkarılarak hesaplanır. Satış ve portföy kapanışı aynı atomik veri yazımında gerçekleşir. Muhasebe toplamları ve dönem raporları satış kayıtlarından üretilir.
+
+Fotoğraflar JPEG, PNG veya WebP, videolar MP4 ve ek belgeler PDF olabilir. Portföy başına 15 fotoğraf, dosya başına 50 MB sınırı uygulanır. Dosyalar data/uploads altında saklanır ve oturum/yetki kontrolüyle sunulur. Dosya yedeği alınırken bu klasör de dahil edilmelidir.
+
+İl, ilçe ve mahalle seçenekleri TürkiyeAPI 2025 veri setinin yerel kopyasından gelir. Kaynak https://api.turkiyeapi.dev/v2/datasets/ ve https://github.com/ubeydeozdmr/turkiye-api. Bu kopya 22 Kasım 2026 tarihinde alınmıştır. Sahibinden ile canlı filtre veya ilan bağlantısı kurulmamıştır.
+
+## Sunucular arası ortak ağ
+
+Broker Ortak ağ API ekranından başka ofise özel anahtar üretir. Diğer ofis, anahtarı üreten sunucunun herkese açık HTTPS adresini ve anahtarı kaydeder. Her iki kurulumda bu uygulama sürümü çalışmalıdır. Bağlantı ekranı açıldığında paylaşılan aktif portföyler merkeze gönderilir ve ağ listesi alınır. Yalnızca shared_pool portföyleri yayınlanır. Mülk sahibi iletişimi, özel notlar ve dosyalar gönderilmez. Paylaşıma açılmış ve izinleri kayıtlı müşteri talepleri, isim ve kişisel iletişim bilgileri kaldırılarak bütçe ve tercih alanlarıyla iletilir.
+
+Anahtarlar merkezde hash olarak saklanır ve broker tarafından iptal edilebilir. İstemci bağlantı anahtarı diskte AES-GCM ile şifrelenir. Kurulum anahtarı data/.network-key dosyasındadır ve Git dışında tutulur. Kurulum taşınırken bu dosya da korunmalıdır. Uzak ofislerin 24 saatten eski gönderileri gösterilmez, yenilenmeleri için bağlantı ekranı tekrar açılmalıdır. Gerçek HTTPS sunucuları arasında yayın testi ayrıca yapılmalıdır.

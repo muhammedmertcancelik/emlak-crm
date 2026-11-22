@@ -49,6 +49,52 @@ function readDB() {
 }
 
 function writeDB(data) {
+  data.departments ||= [];
+  for (const member of data.companyMemberships || []) {
+    if (
+      !["agent", "secretary"].includes(member.role) ||
+      member.status !== "active"
+    )
+      continue;
+    let department = data.departments.find(
+      (d) => d.companyId === member.companyId && d.id === member.departmentId,
+    );
+    if (!department)
+      department = data.departments.find(
+        (d) =>
+          d.companyId === member.companyId &&
+          d.assignedUserIds?.includes(member.userId),
+      );
+    if (!department) {
+      const id = "general-" + member.companyId;
+      department = data.departments.find((d) => d.id === id);
+      if (!department) {
+        department = {
+          id,
+          companyId: member.companyId,
+          name: "Genel danışmanlık",
+          color: "#2864e8",
+          customCriteria: {},
+          assignedUserIds: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        data.departments.push(department);
+      }
+    }
+    member.departmentId = department.id;
+  }
+
+  for (const department of data.departments || []) {
+    department.assignedUserIds = (data.companyMemberships || [])
+      .filter(
+        (member) =>
+          member.companyId === department.companyId &&
+          member.departmentId === department.id &&
+          member.status === "active",
+      )
+      .map((member) => member.userId);
+  }
   const dir = path.dirname(DATA_FILE);
   fs.mkdirSync(dir, { recursive: true });
 

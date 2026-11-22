@@ -1908,3 +1908,5 @@ dialog::backdrop {
     flex-shrink: 0;
   }
 }
+
+.detail-video { width: 100%; max-height: 420px; }

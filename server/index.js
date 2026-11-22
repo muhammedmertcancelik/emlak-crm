@@ -41,6 +41,7 @@ const {
   customerSchema,
   taskSchema,
 } = require("./security");
+const operations = require("./operations");
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
@@ -120,6 +121,23 @@ function calculateReadiness(property) {
 // 4. Kat, Bina ve Teknik: %15 (8+4+3=15 puan)
 // 5. Özel Tercihler (Otopark, Site): %10 (5+5=10 puan)
 function evaluateMatch(customer, property, isOwnerCompany = true) {
+  if (
+    (customer.preferredTypes?.length &&
+      !customer.preferredTypes.includes(property.type)) ||
+    (customer.preferredStatuses?.length &&
+      !customer.preferredStatuses.includes(property.status))
+  )
+    return {
+      score: 0,
+      verdict: "eliminated",
+      reasons: [
+        {
+          type: "negative",
+          text: "Ürün veya işlem türü müşterinin tercihleriyle uyuşmuyor.",
+        },
+      ],
+    };
+
   if (property.currency && property.currency !== "TRY") {
     return {
       score: 0,
@@ -412,6 +430,8 @@ async function handleRequest(req, res) {
 
   // ─── API ENDPOINT'LERİ ─────────────────────────────────────
   if (pathname.startsWith("/api/")) {
+    if (pathname === "/api/federation/exchange")
+      return require("./network").exchange(req, res);
     const db = readDB();
 
     if (pathname === "/api/health" && req.method === "GET")
@@ -436,7 +456,9 @@ async function handleRequest(req, res) {
 
       const normalizedEmail = email.toLowerCase().trim();
       const existingUser = (db.users || []).find(
-        (u) => u.email.toLowerCase() === normalizedEmail,
+        (u) =>
+          (u.email || "").toLowerCase() === normalizedEmail ||
+          (u.username || "").toLowerCase() === normalizedEmail,
       );
       if (existingUser) {
         return jsonResponse(res, 400, {
@@ -447,7 +469,9 @@ async function handleRequest(req, res) {
       return withDBLock(async (lockedDb, save) => {
         if (
           (lockedDb.users || []).some(
-            (u) => u.email.toLowerCase() === normalizedEmail,
+            (u) =>
+              (u.email || "").toLowerCase() === normalizedEmail ||
+              (u.username || "").toLowerCase() === normalizedEmail,
           )
         )
           return jsonResponse(res, 409, {
@@ -544,7 +568,9 @@ async function handleRequest(req, res) {
 
       const normalizedEmail = email.toLowerCase().trim();
       let user = (db.users || []).find(
-        (u) => u.email.toLowerCase() === normalizedEmail,
+        (u) =>
+          (u.email || "").toLowerCase() === normalizedEmail ||
+          (u.username || "").toLowerCase() === normalizedEmail,
       );
 
       const isPasswordValid =
@@ -836,7 +862,9 @@ async function handleRequest(req, res) {
 
         const normalizedEmail = inv.email.toLowerCase().trim();
         let user = (lockedDb.users || []).find(
-          (u) => u.email.toLowerCase() === normalizedEmail,
+          (u) =>
+            (u.email || "").toLowerCase() === normalizedEmail ||
+            (u.username || "").toLowerCase() === normalizedEmail,
         );
 
         if (
@@ -935,6 +963,8 @@ async function handleRequest(req, res) {
       return jsonResponse(res, 403, {
         error: "Devam etmeden önce hesap ayarlarından parolanızı değiştirin.",
       });
+    if (await operations.handle(req, res, auth, db, pathname)) return;
+    operations.scope(db, auth);
     if (["POST", "PUT", "DELETE"].includes(req.method)) {
       const body = await parseBody(req);
       validateReferences(
@@ -1012,7 +1042,7 @@ async function handleRequest(req, res) {
           id: m.id,
           userId: m.userId,
           fullName: u ? u.fullName : "Bilinmeyen Kullanıcı",
-          email: u ? u.email : "",
+          email: u ? u.username || u.email : "",
           phone: u ? u.phone : "",
           role: m.role,
           departmentId: dept ? dept.id : null,
@@ -1150,7 +1180,7 @@ async function handleRequest(req, res) {
           return {
             id: uid,
             fullName: u ? u.fullName : "Danışman",
-            email: u ? u.email : "",
+            email: u ? u.username || u.email : "",
             phone: u ? u.phone : "",
             role: m ? m.role : "agent",
           };
@@ -1544,8 +1574,12 @@ async function handleRequest(req, res) {
           : "5.0";
 
       // Danışman Kişisel İstatistikleri
-      const myProps = ownProps.filter((p) => p.createdById === currentUserId);
-      const myCusts = ownCusts.filter((c) => c.createdById === currentUserId);
+      const myProps = ownProps.filter(
+        (p) => (p.assignedToUserId || p.createdById) === currentUserId,
+      );
+      const myCusts = ownCusts.filter(
+        (c) => (c.assignedToUserId || c.createdById) === currentUserId,
+      );
       const myTasks = ownTasks.filter(
         (f) => f.assignedToUserId === currentUserId,
       );
@@ -1737,7 +1771,9 @@ async function handleRequest(req, res) {
 
         // Sadece benim ilanlarım filtresi (Danışman filtresi)
         if (query.onlyMine === "true") {
-          list = list.filter((p) => p.createdById === currentUserId);
+          list = list.filter(
+            (p) => (p.assignedToUserId || p.createdById) === currentUserId,
+          );
         }
 
         // Departman filtresi
@@ -1776,9 +1812,12 @@ async function handleRequest(req, res) {
             departmentName: dept ? dept.name : null,
             departmentIcon: dept ? dept.icon : null,
             departmentColor: dept ? dept.color : null,
-            isCreatedByMe: p.createdById === currentUserId,
+            isCreatedByMe:
+              (p.assignedToUserId || p.createdById) === currentUserId,
             canEditOrDelete:
-              isOwn && (isOwnerOrAdmin || p.createdById === currentUserId),
+              isOwn &&
+              (isOwnerOrAdmin ||
+                (p.assignedToUserId || p.createdById) === currentUserId),
             ownerCompanyName: ownerComp ? ownerComp.name : null,
             ownerCompanyPhone: ownerComp ? ownerComp.phone : null,
           };
@@ -1801,6 +1840,7 @@ async function handleRequest(req, res) {
             id: "prop-" + crypto.randomUUID(),
             companyId: currentCompanyId,
             createdById: currentUserId,
+            assignedToUserId: body.assignedToUserId || currentUserId,
             shareStatus: "private", // Varsayılan olarak her yeni ilan ÖZEL
             title: body.title || "Başlıksız İlan",
             description: body.description || "",
@@ -1862,6 +1902,8 @@ async function handleRequest(req, res) {
             contactPhone: body.contactPhone || "",
             notes: body.notes || "",
             images: Array.isArray(body.images) ? body.images : [],
+            videos: body.videos || [],
+            documents: body.documents || [],
             readinessChecklist: readiness.checklist,
             readinessScore: readiness.score,
             readinessPercentage: readiness.percentage,
@@ -1916,10 +1958,14 @@ async function handleRequest(req, res) {
           ...publicProperty(targetProperty, currentCompanyId),
           isOwnListing: isOwn,
           createdByName: creatorUser ? creatorUser.fullName : null,
-          isCreatedByMe: targetProperty.createdById === currentUserId,
+          isCreatedByMe:
+            (targetProperty.assignedToUserId || targetProperty.createdById) ===
+            currentUserId,
           canEditOrDelete:
             isOwn &&
-            (isOwnerOrAdmin || targetProperty.createdById === currentUserId),
+            (isOwnerOrAdmin ||
+              (targetProperty.assignedToUserId ||
+                targetProperty.createdById) === currentUserId),
           ownerCompanyName: ownerComp ? ownerComp.name : null,
           ownerCompanyPhone: ownerComp ? ownerComp.phone : null,
         });
@@ -1933,7 +1979,11 @@ async function handleRequest(req, res) {
       }
 
       // Danışman kontrolü: Danışmanlar yalnızca kendi ekledikleri portföyleri düzenleyebilir veya silebilir
-      if (!isOwnerOrAdmin && targetProperty.createdById !== currentUserId) {
+      if (
+        !isOwnerOrAdmin &&
+        (targetProperty.assignedToUserId || targetProperty.createdById) !==
+          currentUserId
+      ) {
         return jsonResponse(res, 403, {
           error:
             "Gayrimenkul danışmanları yalnızca kendi ekledikleri portföyleri düzenleyebilir veya silebilir.",
@@ -1948,6 +1998,12 @@ async function handleRequest(req, res) {
             return jsonResponse(res, 404, { error: "İlan bulunamadı" });
 
           const existingProp = lockedDb.properties[idx];
+          if (
+            !isOwnerOrAdmin &&
+            (existingProp.assignedToUserId || existingProp.createdById) !==
+              currentUserId
+          )
+            fail("Kayıt ataması değişti.", 403);
           const newPrice =
             body.price != null ? Number(body.price) : existingProp.price;
           const priceHistory = Array.isArray(existingProp.priceHistory)
@@ -2117,7 +2173,8 @@ async function handleRequest(req, res) {
         if (
           !prop ||
           prop.companyId !== currentCompanyId ||
-          (!isOwnerOrAdmin && prop.createdById !== currentUserId)
+          (!isOwnerOrAdmin &&
+            (prop.assignedToUserId || prop.createdById) !== currentUserId)
         ) {
           return jsonResponse(res, 404, { error: "İlan bulunamadı" });
         }
@@ -2139,7 +2196,8 @@ async function handleRequest(req, res) {
         if (
           !prop ||
           prop.companyId !== currentCompanyId ||
-          (!isOwnerOrAdmin && prop.createdById !== currentUserId)
+          (!isOwnerOrAdmin &&
+            (prop.assignedToUserId || prop.createdById) !== currentUserId)
         ) {
           return jsonResponse(res, 403, {
             error: "Yalnızca kendi ilanınızı arşivleyebilirsiniz.",
@@ -2195,7 +2253,7 @@ async function handleRequest(req, res) {
           );
           if (query.onlyMine === "true") {
             mySharedCusts = mySharedCusts.filter(
-              (c) => c.createdById === currentUserId,
+              (c) => (c.assignedToUserId || c.createdById) === currentUserId,
             );
           }
           list = mySharedCusts.map((c) => {
@@ -2219,9 +2277,11 @@ async function handleRequest(req, res) {
               departmentName: dept ? dept.name : null,
               departmentIcon: dept ? dept.icon : null,
               departmentColor: dept ? dept.color : null,
-              isCreatedByMe: c.createdById === currentUserId,
+              isCreatedByMe:
+                (c.assignedToUserId || c.createdById) === currentUserId,
               canEditOrDelete:
-                isOwnerOrAdmin || c.createdById === currentUserId,
+                isOwnerOrAdmin ||
+                (c.assignedToUserId || c.createdById) === currentUserId,
             };
           });
         } else {
@@ -2231,7 +2291,7 @@ async function handleRequest(req, res) {
           );
           if (query.onlyMine === "true") {
             ownCustomers = ownCustomers.filter(
-              (c) => c.createdById === currentUserId,
+              (c) => (c.assignedToUserId || c.createdById) === currentUserId,
             );
           }
           list = ownCustomers.map((c) => {
@@ -2255,9 +2315,11 @@ async function handleRequest(req, res) {
               departmentName: dept ? dept.name : null,
               departmentIcon: dept ? dept.icon : null,
               departmentColor: dept ? dept.color : null,
-              isCreatedByMe: c.createdById === currentUserId,
+              isCreatedByMe:
+                (c.assignedToUserId || c.createdById) === currentUserId,
               canEditOrDelete:
-                isOwnerOrAdmin || c.createdById === currentUserId,
+                isOwnerOrAdmin ||
+                (c.assignedToUserId || c.createdById) === currentUserId,
             };
           });
         }
@@ -2323,6 +2385,7 @@ async function handleRequest(req, res) {
             id: "cust-" + crypto.randomUUID(),
             companyId: currentCompanyId,
             createdById: currentUserId,
+            assignedToUserId: body.assignedToUserId || currentUserId,
             shareStatus: "private", // Varsayılan olarak her yeni müşteri ÖZEL
             name: body.name || "İsimsiz Müşteri",
             phone: body.phone || "",
@@ -2334,6 +2397,9 @@ async function handleRequest(req, res) {
             minBudget: minBud,
             maxBudget: maxBud,
             totalBudget: maxBud,
+            creditAmount: body.creditAmount || 0,
+            preferredTypes: body.preferredTypes || [],
+            preferredStatuses: body.preferredStatuses || [],
             downPayment:
               body.downPayment != null ? Number(body.downPayment) : null,
             usesCredit:
@@ -2431,7 +2497,11 @@ async function handleRequest(req, res) {
       }
 
       // Danışman kontrolü: Danışmanlar yalnızca kendi ekledikleri müşterileri düzenleyebilir veya silebilir
-      if (!isOwnerOrAdmin && targetCustomer.createdById !== currentUserId) {
+      if (
+        !isOwnerOrAdmin &&
+        (targetCustomer.assignedToUserId || targetCustomer.createdById) !==
+          currentUserId
+      ) {
         return jsonResponse(res, 403, {
           error:
             "Gayrimenkul danışmanları yalnızca kendi ekledikleri müşteri kayıtlarını düzenleyebilir veya silebilir.",
@@ -2446,6 +2516,12 @@ async function handleRequest(req, res) {
             return jsonResponse(res, 404, { error: "Müşteri bulunamadı" });
 
           const existingCust = lockedDb.customers[idx];
+          if (
+            !isOwnerOrAdmin &&
+            (existingCust.assignedToUserId || existingCust.createdById) !==
+              currentUserId
+          )
+            fail("Kayıt ataması değişti.", 403);
           const maxBud =
             body.maxBudget != null
               ? Number(body.maxBudget)
@@ -2845,6 +2921,12 @@ async function handleRequest(req, res) {
         companyId: currentCompanyId,
         companyName: company ? company.name : "",
         data: {
+          sales: (db.sales || []).filter(
+            (s) => s.companyId === currentCompanyId,
+          ),
+          awards: (db.awards || []).filter(
+            (a) => a.companyId === currentCompanyId,
+          ),
           properties: scopedProperties,
           customers: scopedCustomers,
           followUps: scopedFollowUps,

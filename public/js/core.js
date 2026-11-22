@@ -90,6 +90,7 @@ export const iconBtn = (name, label, action, id = "", selected = false) =>
   icon(name) +
   "</button>";
 export const labels = {
+  secretary: "Sekreter",
   satilik: "Satılık",
   kiralik: "Kiralık",
   satildi: "Satıldı",
@@ -186,7 +187,8 @@ export const norm = (value) => String(value || "").toLocaleLowerCase("tr-TR");
 export const manager = () => ["owner", "admin"].includes(state.session?.role);
 export const canEdit = (item) =>
   item.companyId === state.session?.company?.id &&
-  (manager() || item.createdById === state.session?.user?.id);
+  (manager() ||
+    (item.assignedToUserId || item.createdById) === state.session?.user?.id);
 export const canTask = (item) =>
   manager() || item.assignedToUserId === state.session?.user?.id;
 export const safeImage = (value) =>

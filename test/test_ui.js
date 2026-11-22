@@ -108,7 +108,8 @@ function pass(name) {
   input("name", "Selin Test");
   input("phone", "05320000000");
   input("totalBudget", "8000000");
-  input("preferredDistricts", "Kadıköy, Üsküdar");
+  for (const el of document.querySelectorAll('[name="preferredDistricts"]'))
+    el.checked = ["Kadıköy", "Üsküdar"].includes(el.value);
   submit("record-form");
   const { state } = await import(
     pathToFileURL(path.join(__dirname, "../public/js/core.js"))
@@ -210,6 +211,10 @@ function pass(name) {
       state.departments.length === 1 && !document.getElementById("dialog").open,
     "dept saved",
   );
+  await until(
+    () => document.querySelector('[data-action="edit-department"]'),
+    "department actions ready",
+  );
   click("edit-department", state.departments[0].id);
   await until(() => document.getElementById("field-name"), "edit dept form");
   input("name", "Konut ve Yatırım");
@@ -219,6 +224,10 @@ function pass(name) {
       state.departments[0].name === "Konut ve Yatırım" &&
       !document.getElementById("dialog").open,
     "dept edited",
+  );
+  await until(
+    () => document.querySelector('[data-action="company-tab"]'),
+    "department page rendered",
   );
   pass("Departman oluşturma ve düzenleme");
   click("company-tab", "members");
@@ -269,6 +278,62 @@ function pass(name) {
   );
   pass("Başarısız kayıtta formun korunması ve hata mesajı");
   click("close-dialog");
+
+  location.hash = "company";
+  await until(
+    () => document.querySelector('[data-action="new-staff"]'),
+    "staff action",
+  );
+  click("new-staff");
+  await until(() => document.querySelector('[name="username"]'), "staff form");
+  input("fullName", "Test Danışman");
+  input("username", "ui_danisman");
+  input("password", "UI-danisman-2026!");
+  input("role", "agent");
+  input("departmentId", state.departments[0].id);
+  submit("record-form");
+  await until(
+    () =>
+      state.members.some((m) => m.fullName === "Test Danışman") &&
+      !document.getElementById("dialog").open,
+    "staff saved",
+  );
+  pass("Broker panelinden kullanıcı adı ve parola ile danışman oluşturma");
+  const advisor = state.members.find((m) => m.fullName === "Test Danışman");
+  location.hash = "sales";
+  await until(
+    () => document.querySelector('[data-action="new-sale"]'),
+    "sales route",
+  );
+  click("new-sale");
+  await until(() => document.querySelector('[name="gross"]'), "sale form");
+  input("propertyId", state.properties[0].id);
+  input("customerId", state.customers[0].id);
+  input("advisorId", advisor.userId);
+  input("gross", "100000");
+  input("deductions", "10000");
+  input("distributable", "40000");
+  input("share-company", "50");
+  input("share-" + state.departments[0].id, "50");
+  submit("record-form");
+  await until(
+    () =>
+      !document.getElementById("dialog").open &&
+      state.properties[0].status === "satildi",
+    "sale saved",
+  );
+  location.hash = "finance";
+  await until(
+    () => document.querySelector("main")?.textContent.includes("₺70.000"),
+    "finance result",
+  );
+  pass("Satış bitirme, departman dağıtımı ve şirket kasası");
+  location.hash = "reports";
+  await until(
+    () => document.querySelector("main")?.textContent.includes("Test Danışman"),
+    "reports",
+  );
+  pass("Dönemsel özet ve danışman faaliyet raporu");
   click("logout");
   await until(() => document.getElementById("auth-form"), "logout");
   assert.equal(state.session, null);

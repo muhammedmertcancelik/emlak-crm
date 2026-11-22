@@ -57,7 +57,16 @@ const { pathToFileURL } = require("node:url");
       type: "arama",
     },
   ];
-  global.fetch = async () => ({ ok: true, json: async () => [] });
+  const fixtures = {
+    "/api/finance": { sales: [] },
+    "/api/reports": { periods: [], ranking: [], awards: [], month: "2026-11" },
+    "/api/network/settings": { keys: [], connection: [] },
+    "/api/network/sync": { offices: [] },
+  };
+  global.fetch = async (url) => ({
+    ok: true,
+    json: async () => fixtures[url] || [],
+  });
   for (const name of Object.keys(views.renderers)) {
     state.page = name;
     const html = await views.renderers[name]();

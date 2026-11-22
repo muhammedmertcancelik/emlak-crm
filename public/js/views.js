@@ -1,4 +1,5 @@
-﻿import {
+import { financeView, reportsView, networkView, salesView } from "./office.js";
+import {
   state,
   esc,
   icon,
@@ -23,6 +24,18 @@
   field,
 } from "./core.js";
 export const pages = {
+  sales: ["Satış bitirme", "Tamamlanan satış ve kiralama işlemleri.", "home"],
+  network: ["Ortak ağ API", "Sunucular arası ortak ağ.", "network"],
+  finance: [
+    "Muhasebe",
+    "Şirket kasası, kesintiler ve departman dağılımları.",
+    "building",
+  ],
+  reports: [
+    "Özetler ve ayın elemanı",
+    "Dönemsel sonuçlar ve danışman faaliyetleri.",
+    "grid",
+  ],
   dashboard: [
     "Genel bakış",
     "İşinizin bugünkü görünümü. Önceliklerinizi buradan yönetin.",
@@ -88,6 +101,8 @@ const link = (key, count = "") =>
   "</a>";
 export function shell() {
   const s = state.session;
+  pages.customers[0] = s.role === "agent" ? "Müşterilerim" : "Müşteriler";
+  pages.properties[0] = s.role === "agent" ? "Portföylerim" : "Portföy";
   return (
     '<div class="shell"><button class="nav-scrim" data-action="menu" aria-label="Menüyü kapat"></button><aside class="sidebar" aria-label="Ana menü"><a class="brand" href="#dashboard"><span class="brand-mark">P</span><span>payidar<small>GAYRİMENKUL CRM</small></span></a><div class="nav-section">ÇALIŞMA ALANI</div><nav>' +
     link("dashboard") +
@@ -97,6 +112,9 @@ export function shell() {
     link("matching") +
     link("pool") +
     '<div class="nav-section">YÖNETİM</div>' +
+    (manager()
+      ? link("sales") + link("finance") + link("reports") + link("network")
+      : "") +
     link("company") +
     link("settings") +
     '</nav><div class="sidebar-bottom">' +
@@ -133,9 +151,11 @@ export function heading(actions = "") {
       : "") +
     "<h1>" +
     (state.page === "dashboard"
-      ? "Merhaba, " +
-        esc((state.session.user.fullName || "").split(" ")[0]) +
-        "."
+      ? manager()
+        ? "Broker paneli"
+        : state.session.role === "secretary"
+          ? "Sekreter paneli"
+          : "Danışman paneli"
       : title) +
     "</h1><p>" +
     description +
@@ -717,7 +737,11 @@ export async function matching() {
         encodeURIComponent(chosen),
     );
   return (
-    heading() +
+    heading(
+      '<label class="check-label"><input type="checkbox" data-filter="allMatches"' +
+        (state.filters.allMatches ? " checked" : "") +
+        ">Tüm ürünleri bul</label>",
+    ) +
     '<div class="notice">Bütçe, bölge, oda ve diğer tercihlere göre puanlanır. Sonuçlar karar desteğidir; eksik bilgileri görüşmede doğrulayın.</div><div class="split-layout"><section class="panel"><div class="panel-head"><div class="segmented">' +
     ["customer", "property"]
       .map(
@@ -772,6 +796,11 @@ export async function matching() {
         "</div>" +
         (result.matches.length
           ? result.matches
+              .filter(
+                (m) =>
+                  state.filters.allMatches ||
+                  (m.score >= 50 && m.verdict !== "eliminated"),
+              )
               .map((m) => {
                 const r = m.property || m.customer;
                 return (
@@ -839,7 +868,7 @@ export async function pool() {
       ).includes(norm(state.filters.q)),
   );
   return (
-    heading() +
+    heading(manager() ? btn("Ortak ağ API oluştur / ekle","navigate","network") : "") +
     '<div class="notice">Paylaşımlar ofis yöneticileri tarafından açılır. Diğer ofislerin müşteri iletişim bilgileri ve portföy sahiplerinin özel bilgileri gösterilmez.</div><div class="tabs"><button class="tab ' +
     (kind === "properties" ? "active" : "") +
     '" data-action="pool-kind" data-id="properties">Portföyler</button><button class="tab ' +
@@ -863,10 +892,18 @@ export async function pool() {
 export async function company() {
   const tab = state.companyTab;
   const c = state.session.company;
+  const summary = manager() ? await api("/reports") : null;
   let invitations = [];
   if (manager() && tab === "members")
     invitations = await api("/companies/invitations");
   return (
+    (summary
+      ? '<div class="notice">Bu ay şirket kasasına kalan · ' +
+        money(
+          (summary.periods.find((p) => p.name === "Aylık")?.net || 0) / 100,
+        ) +
+        "</div>"
+      : "") +
     heading(
       manager()
         ? btn(
@@ -883,7 +920,7 @@ export async function company() {
             "",
             "primary",
             "plus",
-          )
+          ) + btn("Danışman oluştur", "new-staff")
         : "",
     ) +
     '<div class="tabs">' +
@@ -1174,6 +1211,10 @@ export function search() {
   );
 }
 export const renderers = {
+  sales: salesView,
+  network: networkView,
+  finance: financeView,
+  reports: reportsView,
   dashboard,
   properties,
   customers,
@@ -1232,9 +1273,9 @@ export function authView(mode = "login", invite = null) {
         "<br><small>Bu e-posta kayıtlıysa mevcut hesap parolanızı kullanın.</small></div>"
       : field(
           "email",
-          "E-posta adresi",
+          register ? "E-posta adresi" : "Kullanıcı adı veya e-posta",
           "",
-          "email",
+          register ? "email" : "text",
           true,
           'autocomplete="username" placeholder="ad@ofisiniz.com"',
         )) +

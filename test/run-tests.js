@@ -10,6 +10,7 @@ try {
     "test_multitenant_security.js",
     "test_e2e_api.js",
     "test_hardening.js",
+    "test_office.js",
     "test_frontend.js",
     "test_ui.js",
   ]) {
@@ -22,6 +23,7 @@ try {
       env: {
         ...process.env,
         CRM_DATA_FILE: path.join(dir, name + ".json"),
+        CRM_UPLOAD_DIR: path.join(dir, "uploads"),
         NODE_ENV: "test",
       },
     });

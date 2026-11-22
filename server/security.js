@@ -45,6 +45,7 @@ function secureRequest(req, res) {
     fail("İstek doğrulanamadı.", 403);
   if (
     mutation &&
+    !req.url.startsWith("/api/media?") &&
     !/^application\/json(?:;|$)/i.test(req.headers["content-type"] || "")
   )
     fail("JSON içerik bekleniyor.", 415);
@@ -88,6 +89,9 @@ const propertySchema = {
   ...booleans(
     "isSite hasBalcony hasElevator hasParking creditEligible isSwap isFavorite",
   ),
+  assignedToUserId: "string",
+  videos: "array",
+  documents: "array",
   features: "array",
   images: "array",
   readinessChecklist: "object",
@@ -102,6 +106,10 @@ const customerSchema = {
   ...booleans(
     "usesCredit requiresSite requiresParking kvkkConsent contactPermission",
   ),
+  assignedToUserId: "string",
+  creditAmount: "number",
+  preferredTypes: "array",
+  preferredStatuses: "array",
   preferredDistricts: "array",
   preferredRooms: "array",
 };
@@ -165,7 +173,11 @@ function validateFields(body, schema, required = []) {
         fail(`${key}: geçersiz veri.`);
     } else if (typeof value !== type) fail(`${key}: geçersiz veri türü.`);
   }
-  if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email))
+  if (
+    body.email &&
+    schema !== loginSchema &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)
+  )
     fail("Geçerli bir e-posta adresi girin.");
   if (body.currency && !["TRY", "USD", "EUR", "GBP"].includes(body.currency))
     fail("Geçersiz para birimi.");
@@ -183,6 +195,7 @@ function validateFields(body, schema, required = []) {
     )
   )
     fail("Fotoğraf için HTTPS veya yerel adres kullanın.");
+  if (body.images?.length > 15) fail("En fazla 15 fotoğraf eklenebilir.");
   if (body.color && !/^#[a-f0-9]{6}$/i.test(body.color)) fail("Geçersiz renk.");
   if (body.title !== undefined && !body.title.trim())
     fail("Başlık boş olamaz.");
@@ -194,6 +207,7 @@ function validateFields(body, schema, required = []) {
     fail("Geçersiz kontrol listesi.");
   return body;
 }
+const loginSchema = strings("email password");
 function validateBody(body, pathname, method) {
   validateShape(body);
   if (/^\/api\/properties(?:\/[^/]+)?$/.test(pathname))
@@ -217,7 +231,7 @@ function validateBody(body, pathname, method) {
       ["email", "password", "fullName", "companyName"],
     );
   if (pathname === "/api/auth/login")
-    validateFields(body, strings("email password"), ["email", "password"]);
+    validateFields(body, loginSchema, ["email", "password"]);
   if (pathname === "/api/auth/change-password")
     validateFields(body, strings("currentPassword newPassword"), [
       "currentPassword",
@@ -344,6 +358,8 @@ function validateReferences(body, db, companyId, userId, manager) {
 function publicProperty(property, companyId) {
   if (property.companyId === companyId) return property;
   const {
+    documents,
+    videos,
     contactName,
     contactPhone,
     notes,

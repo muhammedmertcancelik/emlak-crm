@@ -22,3 +22,7 @@ Thumbs.db
 scratch/
 test/sandbox/backups/
 data/backups/
+
+data/uploads/
+test-result.log
+data/.network-key

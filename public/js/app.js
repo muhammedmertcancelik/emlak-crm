@@ -1,4 +1,11 @@
-﻿import { state, esc, icon, btn, api, loadData, toast, empty } from "./core.js";
+import {
+  staffForm,
+  saleForm,
+  awardForm,
+  networkKeyForm,
+  networkConnectForm,
+} from "./office.js";
+import { state, esc, icon, btn, api, loadData, toast, empty } from "./core.js";
 import { pages, shell, renderers, authView } from "./views.js";
 import {
   closeDialog,
@@ -116,6 +123,12 @@ async function mutate(
   toast(message);
 }
 const actions = {
+  "network-key": networkKeyForm,
+  "network-connect": networkConnectForm,
+  "network-revoke": (id) => mutate("/network/revoke", "POST", { id }),
+  "new-staff": staffForm,
+  "new-sale": saleForm,
+  "new-award": awardForm,
   "close-dialog": () => closeDialog(),
   menu: () => document.querySelector(".shell")?.classList.toggle("nav-open"),
   navigate: (id) => navigate(id),
@@ -390,6 +403,24 @@ document.addEventListener("change", async (event) => {
   }
 });
 document.addEventListener("input", (event) => {
+  const saleForm = document.getElementById("record-form");
+  const netOutput = document.getElementById("sale-net");
+  if (
+    netOutput &&
+    saleForm?.elements.gross &&
+    ["gross", "deductions"].includes(event.target.name)
+  ) {
+    const net =
+      Number(saleForm.elements.gross.value || 0) -
+      Number(saleForm.elements.deductions.value || 0);
+    netOutput.textContent =
+      "Net kazanç " +
+      new Intl.NumberFormat("tr-TR", {
+        style: "currency",
+        currency: "TRY",
+      }).format(net);
+  }
+
   if (event.target.id !== "list-search") return;
   state.filters.q = event.target.value;
   clearTimeout(searchTimer);

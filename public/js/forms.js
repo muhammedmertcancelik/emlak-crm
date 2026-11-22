@@ -59,15 +59,26 @@ const pBasic = [
   ],
   ["price", "Fiyat", "number", true],
   ["currency", "Para birimi", ["TRY", "USD", "EUR", "GBP"]],
-  ["city", "Şehir", "text", true],
-  ["district", "İlçe", "text", true],
-  ["neighborhood", "Mahalle"],
-  ["rooms", "Oda sayısı"],
+  ["city", "Şehir", [], true],
+  ["district", "İlçe", [], true],
+  ["neighborhood", "Mahalle", []],
+  [
+    "rooms",
+    "Oda sayısı",
+    ["1+0", "1+1", "2+1", "3+1", "4+1", "5+1", "6+1", "7+1"],
+  ],
   ["netArea", "Net alan (m²)", "number"],
   ["grossArea", "Brüt alan (m²)", "number"],
 ];
 const pBuilding = [
-  ["buildingAge", "Bina yaşı", "number"],
+  [
+    "buildingAge",
+    "Bina yaşı",
+    Array.from({ length: 101 }, (_, i) => [
+      String(i),
+      i === 0 ? "Yeni bina" : i + " yaş",
+    ]),
+  ],
   ["floor", "Bulunduğu kat", "number"],
   ["totalFloors", "Toplam kat", "number"],
   ["bathrooms", "Banyo sayısı", "number"],
@@ -91,16 +102,23 @@ const pBuilding = [
       ["kismi", "Kısmi eşyalı"],
     ],
   ],
-  ["facade", "Cephe"],
+  [
+    "facade",
+    "Cephe",
+    ["kuzey", "guney", "dogu", "bati", "kuzey-dogu", "guney-bati"],
+  ],
   ["siteName", "Site adı"],
   ["isSite", "Site içinde", "checkbox"],
   ["hasParking", "Otopark", "checkbox"],
   ["hasElevator", "Asansör", "checkbox"],
   ["hasBalcony", "Balkon", "checkbox"],
-  ["features", "Diğer özellikler", "list"],
+  [
+    "features",
+    "Diğer özellikler",
+    "checks:ebeveyn-banyosu|giyinme-odasi|ankastre|teras|bahce|havuz|guvenlik|jenerator|isi-yalitimi|ses-yalitimi",
+  ],
   ["address", "Açık adres", "textarea"],
   ["description", "Portföy açıklaması", "textarea"],
-  ["images", "Fotoğraf adresleri", "lines"],
 ];
 const pFinance = [
   ["estimatedRent", "Tahmini aylık kira", "number"],
@@ -157,7 +175,6 @@ const pPrivate = [
 const cBasic = [
   ["name", "Ad soyad", "text", true],
   ["phone", "Telefon", "tel", true],
-  ["email", "E-posta", "email"],
   [
     "pipelineStatus",
     "Görüşme aşaması",
@@ -174,7 +191,17 @@ const cBasic = [
   ["minBudget", "En düşük bütçe (₺)", "number"],
   ["totalBudget", "En yüksek bütçe (₺)", "number", true],
   ["preferredDistricts", "Tercih edilen ilçeler", "list"],
-  ["preferredRooms", "Tercih edilen odalar", "list"],
+  [
+    "preferredRooms",
+    "Tercih edilen odalar",
+    "checks:1+0|1+1|2+1|3+1|4+1|5+1|6+1|7+1",
+  ],
+  [
+    "preferredTypes",
+    "İlgilendiği ürünler",
+    "checks:daire|villa|mustakil|residans|arsa|isyeri|dukkan",
+  ],
+  ["preferredStatuses", "İşlem türleri", "checks:satilik|kiralik"],
   [
     "customerClass",
     "Öncelik",
@@ -204,6 +231,7 @@ const cDetails = [
   ],
   ["purpose", "Alım amacı", ["oturum", "yatirim"]],
   ["downPayment", "Peşinat (₺)", "number"],
+  ["creditAmount", "Kredi miktarı (₺)", "number"],
   ["minNetArea", "En az net alan (m²)", "number"],
   ["maxBuildingAge", "En fazla bina yaşı", "number"],
   ["maxMonthlyDues", "En yüksek aidat (₺)", "number"],
@@ -225,6 +253,29 @@ function control(spec, data) {
     ' id="' + id + '" name="' + key + '"' + (required ? " required" : "");
   const caption =
     esc(title) + (required ? ' <span class="required">*</span>' : "");
+  if (typeof type === "string" && type.startsWith("checks:"))
+    return (
+      '<fieldset class="form-field"><legend>' +
+      esc(title) +
+      "</legend>" +
+      type
+        .slice(7)
+        .split("|")
+        .map(
+          (v) =>
+            '<label class="check-label"><input type="checkbox" name="' +
+            key +
+            '" value="' +
+            esc(v) +
+            '"' +
+            ((data[key] || []).includes(v) ? " checked" : "") +
+            ">" +
+            esc(label(v)) +
+            "</label>",
+        )
+        .join("") +
+      "</fieldset>"
+    );
   if (type === "checkbox")
     return (
       '<label class="check-label"><input type="checkbox" name="' +
@@ -308,7 +359,7 @@ const section = (title, specs, data, note = "") =>
   (note ? '<div class="panel-body muted small">' + note + "</div>" : "") +
   group(specs, data) +
   "</details>";
-function formDialog(
+export function formDialog(
   title,
   html,
   save,
@@ -330,6 +381,7 @@ function formDialog(
   activeForm = { save, specs };
 }
 export async function openForm(kind, id = "", seed = {}) {
+  showDialog("Form yükleniyor", "<p>Seçenekler hazırlanıyor.</p>");
   let data = {};
   let specs = [],
     html = "";
@@ -352,6 +404,18 @@ export async function openForm(kind, id = "", seed = {}) {
       urgencyLevel: "orta",
       ...data,
     };
+    const locations = await api(
+      "/locations?city=" +
+        encodeURIComponent(data.city) +
+        "&district=" +
+        encodeURIComponent(data.district || ""),
+    );
+    for (const [key, values] of [
+      ["city", locations.cities],
+      ["district", locations.districts],
+      ["neighborhood", locations.neighborhoods],
+    ])
+      pBasic.find((spec) => spec[0] === key)[2] = [["", "Seçin"], ...values];
     specs = [...pBasic, ...pBuilding, ...pFinance, ...pPrivate];
     html =
       group(pBasic, data) +
@@ -364,6 +428,38 @@ export async function openForm(kind, id = "", seed = {}) {
         "Bu bilgiler ortak ağdaki diğer ofislere gösterilmez.",
       );
   }
+  if (kind === "property")
+    html +=
+      '<details class="form-section" open><summary>Fotoğraf, video ve dosyalar</summary><p>En fazla 15 fotoğraf. Her dosya en fazla 50 MB.</p>' +
+      [
+        ["images", "Fotoğraflar", "image/jpeg,image/png,image/webp"],
+        ["videos", "Videolar", "video/mp4"],
+        ["documents", "Dosyalar", "application/pdf"],
+      ]
+        .map(
+          ([key, title, accept]) =>
+            '<label class="form-field">' +
+            title +
+            '<input type="file" name="upload-' +
+            key +
+            '" accept="' +
+            accept +
+            '" multiple></label>' +
+            (data[key] || [])
+              .map(
+                (url) =>
+                  '<label class="check-label"><input type="checkbox" name="keep-' +
+                  key +
+                  '" value="' +
+                  esc(url) +
+                  '" checked>Mevcut dosyayı koru · ' +
+                  esc(url.split("/").pop()) +
+                  "</label>",
+              )
+              .join(""),
+        )
+        .join("") +
+      "</details>";
   if (kind === "customer") {
     data = {
       pipelineStatus: "yeni",
@@ -374,6 +470,12 @@ export async function openForm(kind, id = "", seed = {}) {
       ...data,
     };
     data.pipelineStatus = data.pipelineStatus || data.status;
+    const locations = await api(
+      "/locations?city=" +
+        encodeURIComponent(state.session.company.city || "İstanbul"),
+    );
+    cBasic.find((spec) => spec[0] === "preferredDistricts")[2] =
+      "checks:" + locations.districts.join("|");
     specs = [...cBasic, ...cDetails, ...cConsent];
     html =
       group(cBasic, data) +
@@ -442,7 +544,6 @@ export async function openForm(kind, id = "", seed = {}) {
     specs = [
       ["name", "Şirket adı", "text", true],
       ["city", "Şehir"],
-      ["email", "E-posta", "email"],
       ["phone", "Telefon", "tel"],
       ["taxNumber", "Vergi numarası"],
       ["address", "Adres", "textarea"],
@@ -480,12 +581,110 @@ export async function openForm(kind, id = "", seed = {}) {
         .join("") +
       "</div></details>";
   }
+  if (["property", "customer"].includes(kind) && manager()) {
+    const assignment = [
+      [
+        "assignedToUserId",
+        kind === "property" ? "Portföy ata" : "Müşteri ata",
+        [
+          ["", "Kendime ata"],
+          ...state.members
+            .filter((m) => m.role === "agent")
+            .map((m) => [
+              m.userId,
+              m.fullName + " · " + (m.departmentName || "Departman yok"),
+            ]),
+        ],
+      ],
+    ];
+    specs.push(...assignment);
+    html += group(assignment, data);
+  }
+  if (kind === "department") {
+    const criteria = [
+      [
+        "types",
+        "Ürünler",
+        "checks:daire|villa|mustakil|residans|arsa|isyeri|dukkan",
+      ],
+      ["statuses", "İşlem türleri", "checks:satilik|kiralik"],
+      ["rooms", "Oda seçenekleri", "checks:1+0|1+1|2+1|3+1|4+1|5+1|6+1|7+1"],
+    ];
+    const locations = await api(
+      "/locations?city=" +
+        encodeURIComponent(state.session.company.city || "İstanbul"),
+    );
+    criteria.push([
+      "districts",
+      "Çalışma bölgeleri",
+      "checks:" + locations.districts.join("|"),
+    ]);
+    html += section(
+      "Departmanın çalışma kriterleri",
+      criteria,
+      data.customCriteria || {},
+    );
+    specs.push(...criteria);
+  }
   formDialog(
     (id || kind === "company" ? "" : "Yeni ") +
       kinds[kind][0].toLocaleLowerCase("tr-TR") +
       (id || kind === "company" ? " düzenle" : ""),
     html,
-    async (formData) => {
+    async (formData, values) => {
+      if (kind === "property") {
+        if (
+          values.getAll("keep-images").length +
+            values.getAll("upload-images").filter((f) => f.size).length >
+          15
+        )
+          throw new Error("En fazla 15 fotoğraf seçin.");
+        for (const [key, mediaKind] of [
+          ["images", "image"],
+          ["videos", "video"],
+          ["documents", "document"],
+        ]) {
+          formData[key] = values.getAll("keep-" + key);
+          for (const file of values
+            .getAll("upload-" + key)
+            .filter((f) => f.size)) {
+            if (file.size > 50 * 1024 * 1024)
+              throw new Error("Dosya en fazla 50 MB olabilir.");
+            const response = await fetch("/api/media?kind=" + mediaKind, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/octet-stream",
+                "X-CRM-Request": "1",
+              },
+              body: file,
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            formData[key].push(result.url);
+          }
+        }
+      }
+      if (kind === "property")
+        formData.buildingAge =
+          formData.buildingAge === "" ? null : Number(formData.buildingAge);
+      if (
+        ["property", "customer"].includes(kind) &&
+        formData.assignedToUserId === ""
+      )
+        delete formData.assignedToUserId;
+      if (kind === "department") {
+        formData.customCriteria = {
+          ...(data.customCriteria || {}),
+          types: formData.types,
+          statuses: formData.statuses,
+          rooms: formData.rooms,
+          districts: formData.districts,
+        };
+        delete formData.types;
+        delete formData.statuses;
+        delete formData.rooms;
+        delete formData.districts;
+      }
       if (kind === "customer") formData.maxBudget = formData.totalBudget;
       if (kind === "task") {
         formData.dueDate = new Date(
@@ -517,23 +716,25 @@ export async function submitRecord(form) {
   for (const [name, , type = "text"] of specs) {
     const raw = values.get(name);
     data[name] =
-      type === "checkbox"
-        ? values.has(name)
-        : type === "number"
-          ? raw === ""
-            ? null
-            : Number(raw)
-          : type === "list"
-            ? String(raw || "")
-                .split(",")
-                .map((x) => x.trim())
-                .filter(Boolean)
-            : type === "lines"
+      typeof type === "string" && type.startsWith("checks:")
+        ? values.getAll(name)
+        : type === "checkbox"
+          ? values.has(name)
+          : type === "number"
+            ? raw === ""
+              ? null
+              : Number(raw)
+            : type === "list"
               ? String(raw || "")
-                  .split("\n")
+                  .split(",")
                   .map((x) => x.trim())
                   .filter(Boolean)
-              : (raw ?? "");
+              : type === "lines"
+                ? String(raw || "")
+                    .split("\n")
+                    .map((x) => x.trim())
+                    .filter(Boolean)
+                : (raw ?? "");
   }
   await save(data, values);
   return true;
@@ -544,9 +745,36 @@ export async function propertyDetail(id) {
   const editable = canEdit(p);
   const rent = Number(p.estimatedRent || 0),
     price = Number(p.price || 0);
+  const attachments =
+    (p.videos || [])
+      .map(
+        (url) =>
+          '<video controls preload="metadata" class="detail-video" src="' +
+          esc(url) +
+          '"></video>',
+      )
+      .join("") +
+    (p.documents || [])
+      .map(
+        (url) =>
+          '<p><a href="' +
+          esc(url) +
+          '" target="_blank" rel="noopener">Portföy dosyasını indir</a></p>',
+      )
+      .join("");
   showDialog(
     p.title,
     '<div class="dialog-body">' +
+      (p.images || [])
+        .slice(1)
+        .filter(safeImage)
+        .map(
+          (url) =>
+            '<img class="detail-photo" src="' +
+            esc(url) +
+            '" alt="Portföy fotoğrafı" loading="lazy">',
+        )
+        .join("") +
       (safeImage(p.images?.[0])
         ? '<img class="detail-photo" src="' +
           esc(p.images[0]) +
@@ -572,7 +800,15 @@ export async function propertyDetail(id) {
           (p.netArea || "—") + " / " + (p.grossArea || "—") + " m²",
         ],
         ["Bina yaşı / Kat", (p.buildingAge ?? "—") + " / " + (p.floor ?? "—")],
-        ["Danışman / Ofis", p.createdByName || p.ownerCompanyName],
+        ["Ekleyen danışman", p.createdByName || p.ownerCompanyName],
+        [
+          "Sorumlu danışman",
+          state.members.find(
+            (m) => m.userId === (p.assignedToUserId || p.createdById),
+          )?.fullName,
+        ],
+        ["Eklenme tarihi", date(p.createdAt)],
+        ["Düzenlenme tarihi", date(p.updatedAt)],
         [
           "Özellikler",
           [
@@ -623,6 +859,7 @@ export async function propertyDetail(id) {
           " · " +
           esc(p.ownerCompanyPhone || "Telefon eklenmemiş") +
           "</div>") +
+      attachments +
       '<div class="detail-actions">' +
       btn("Müşteri eşleştir", "match-property", p.id, "", "match") +
       (own
@@ -673,7 +910,6 @@ export async function customerDetail(id) {
       ' <span class="small muted">üst bütçe</span></div><dl class="info-grid">' +
       [
         ["Telefon", c.phone],
-        ["E-posta", c.email],
         ["Bölgeler", (c.preferredDistricts || []).join(", ")],
         ["Oda tercihleri", (c.preferredRooms || []).join(", ")],
         ["Alım amacı", label(c.purpose)],
@@ -879,3 +1115,45 @@ export function restoreForm() {
 export function isActiveForm() {
   return activeForm !== null;
 }
+
+if (typeof document !== "undefined")
+  document.addEventListener("change", async (event) => {
+    const key = event.target.id;
+    if (!["field-city", "field-district"].includes(key)) return;
+    const form = document.getElementById("record-form");
+    if (
+      !form?.elements.city ||
+      !form.elements.district ||
+      !form.elements.neighborhood
+    )
+      return;
+    const city = form.elements.city.value;
+    const district = key === "field-city" ? "" : form.elements.district.value;
+    try {
+      const data = await api(
+        "/locations?city=" +
+          encodeURIComponent(city) +
+          "&district=" +
+          encodeURIComponent(district),
+      );
+      if (
+        !form.isConnected ||
+        form.elements.city.value !== city ||
+        (key === "field-district" && form.elements.district.value !== district)
+      )
+        return;
+      if (key === "field-city")
+        form.elements.district.innerHTML = options(
+          data.districts,
+          "",
+          "İlçe seçin",
+        );
+      form.elements.neighborhood.innerHTML = options(
+        data.neighborhoods,
+        "",
+        "Mahalle seçin",
+      );
+    } catch (error) {
+      toast(error.message, true);
+    }
+  });
