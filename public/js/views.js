@@ -71,6 +71,11 @@ export const pages = {
     "Ofis bilgileri, ekip üyeleri ve departmanlar.",
     "building",
   ],
+  team: [
+    "Departmanlar ve ekip",
+    "Ekip üyelerinin departmanlarını, portföylerini ve müşteri atamalarını yönetin.",
+    "users",
+  ],
   settings: [
     "Hesap ve veriler",
     "Hesabınızı ve şirket verilerinizi yönetin.",
@@ -113,7 +118,11 @@ export function shell() {
     link("pool") +
     '<div class="nav-section">YÖNETİM</div>' +
     (manager()
-      ? link("sales") + link("finance") + link("reports") + link("network")
+      ? link("team") +
+        link("sales") +
+        link("finance") +
+        link("reports") +
+        link("network")
       : "") +
     link("company") +
     link("settings") +
@@ -559,7 +568,15 @@ export function customerTable(list, pool = false) {
           '<span class="sub">' +
           esc(label(c.purpose)) +
           "</span></td><td>" +
-          esc((c.preferredDistricts || []).join(", ") || "Belirtilmedi") +
+          esc(
+            [
+              c.preferredCity,
+              ...(c.preferredDistricts || []),
+              ...(c.preferredNeighborhoods || []),
+            ]
+              .filter(Boolean)
+              .join(", ") || "Belirtilmedi",
+          ) +
           "</td><td>" +
           esc(pool ? c.ownerCompany?.name : c.createdByName || "Atanmamış") +
           '</td><td><div class="actions">' +
@@ -579,7 +596,13 @@ export function customers() {
     (c) =>
       (!f.q ||
         norm(
-          [c.name, c.phone, c.email, ...(c.preferredDistricts || [])].join(" "),
+          [
+            c.name,
+            c.phone,
+            c.email,
+            ...(c.preferredDistricts || []),
+            ...(c.preferredNeighborhoods || []),
+          ].join(" "),
         ).includes(norm(f.q))) &&
       (!f.status || (c.pipelineStatus || c.status) === f.status) &&
       (!f.customerClass || c.customerClass === f.customerClass) &&
@@ -770,7 +793,10 @@ export async function matching() {
               money(r.totalBudget ?? r.price, r.currency) +
               " · " +
               esc(
-                (r.preferredDistricts || [r.district])
+                (r.preferredNeighborhoods?.length
+                  ? r.preferredNeighborhoods
+                  : r.preferredDistricts || [r.district]
+                )
                   .filter(Boolean)
                   .join(", "),
               ) +
@@ -868,7 +894,11 @@ export async function pool() {
       ).includes(norm(state.filters.q)),
   );
   return (
-    heading(manager() ? btn("Ortak ağ API oluştur / ekle","navigate","network") : "") +
+    heading(
+      manager()
+        ? btn("Ortak ağ API oluştur / ekle", "navigate", "network")
+        : "",
+    ) +
     '<div class="notice">Paylaşımlar ofis yöneticileri tarafından açılır. Diğer ofislerin müşteri iletişim bilgileri ve portföy sahiplerinin özel bilgileri gösterilmez.</div><div class="tabs"><button class="tab ' +
     (kind === "properties" ? "active" : "") +
     '" data-action="pool-kind" data-id="properties">Portföyler</button><button class="tab ' +
@@ -886,6 +916,155 @@ export async function pool() {
     '<div class="table-footer">' +
     list.length +
     " kayıt</div></section>" +
+    footer()
+  );
+}
+export function team() {
+  if (!manager())
+    return (
+      heading() + empty("Erişim yok", "Bu alan broker ve yöneticilere açıktır.")
+    );
+  const members = state.members;
+  const selected =
+    members.find((m) => m.userId === state.teamMemberId) || members[0];
+  const selectedId = selected?.userId;
+  const allRecords = state.teamRecords === "all";
+  const properties = state.properties.filter(
+    (p) => allRecords || (p.assignedToUserId || p.createdById) === selectedId,
+  );
+  const customers = state.customers.filter(
+    (c) => allRecords || (c.assignedToUserId || c.createdById) === selectedId,
+  );
+  const memberOptions = members.map((m) => [m.userId, m.fullName]);
+  const assignmentRows = (records, kind) =>
+    records.length
+      ? '<div class="table-wrap"><table><thead><tr><th>' +
+        (kind === "property" ? "Portföy" : "Müşteri") +
+        "</th><th>Konum / bütçe</th><th>Sorumlu</th><th>İşlem</th></tr></thead><tbody>" +
+        records
+          .map(
+            (record) =>
+              "<tr><td><strong>" +
+              esc(record.title || record.name) +
+              "</strong></td><td>" +
+              esc(
+                kind === "property"
+                  ? [record.district, record.city].filter(Boolean).join(", ")
+                  : money(record.totalBudget),
+              ) +
+              '</td><td><select class="control" data-record-assign="' +
+              kind +
+              '" data-id="' +
+              esc(record.id) +
+              '" aria-label="' +
+              esc((record.title || record.name) + " sorumlusu") +
+              '">' +
+              options(
+                memberOptions,
+                record.assignedToUserId || record.createdById,
+              ) +
+              "</select></td><td>" +
+              btn(
+                "Aç",
+                kind === "property" ? "property-detail" : "customer-detail",
+                record.id,
+                "small",
+              ) +
+              "</td></tr>",
+          )
+          .join("") +
+        "</tbody></table></div>"
+      : empty("Kayıt yok", "Bu görünümde kayıt bulunmuyor.");
+  return (
+    heading(
+      btn("Departman ekle", "new-department", "", "primary", "plus") +
+        btn("Danışman oluştur", "new-staff"),
+    ) +
+    '<div class="team-layout"><section class="panel"><div class="panel-head"><h2>Ekip</h2>' +
+    badge(members.length + " kişi") +
+    '</div><div class="team-member-list">' +
+    members
+      .map((m) => {
+        const propertyCount = state.properties.filter(
+          (p) => (p.assignedToUserId || p.createdById) === m.userId,
+        ).length;
+        const customerCount = state.customers.filter(
+          (c) => (c.assignedToUserId || c.createdById) === m.userId,
+        ).length;
+        return (
+          '<button class="team-member ' +
+          (m.userId === selectedId ? "selected" : "") +
+          '" data-action="team-select" data-id="' +
+          esc(m.userId) +
+          '"><span class="avatar">' +
+          esc(initials(m.fullName)) +
+          "</span><span><strong>" +
+          esc(m.fullName) +
+          "</strong><small>" +
+          esc(m.departmentName || "Departman yok") +
+          " · " +
+          propertyCount +
+          " portföy · " +
+          customerCount +
+          " müşteri</small></span></button>"
+        );
+      })
+      .join("") +
+    '</div></section><div class="stack">' +
+    (selected
+      ? '<section class="panel"><div class="panel-head"><div><h2>' +
+        esc(selected.fullName) +
+        "</h2><p>" +
+        esc(selected.email || "") +
+        "</p></div>" +
+        badge(label(selected.role), "blue") +
+        '</div><div class="panel-body"><label class="form-field">Departman<select class="control" data-member-dept="' +
+        esc(selected.id) +
+        '">' +
+        options(
+          state.departments.map((d) => [d.id, d.name]),
+          selected.departmentId,
+          "Departman yok",
+        ) +
+        "</select></label></div></section>"
+      : empty("Ekip üyesi yok", "Önce danışman oluşturun veya davet edin.")) +
+    '<section class="panel"><div class="panel-head"><h2>Departmanlar</h2>' +
+    badge(state.departments.length) +
+    '</div><div class="panel-body team-departments">' +
+    (state.departments.length
+      ? state.departments
+          .map(
+            (d) =>
+              "<div><strong>" +
+              esc(d.name) +
+              "</strong><span>" +
+              esc(d.memberCount) +
+              " kişi · " +
+              esc(d.propertiesCount) +
+              " portföy · " +
+              esc(d.customersCount) +
+              " müşteri</span>" +
+              btn("Düzenle", "edit-department", d.id, "small") +
+              "</div>",
+          )
+          .join("")
+      : "<p>Henüz departman eklenmemiş.</p>") +
+    "</div></section></div></div>" +
+    '<div class="tabs"><button class="tab ' +
+    (!allRecords ? "active" : "") +
+    '" data-action="team-records" data-id="selected">Seçili üyenin kayıtları</button>' +
+    '<button class="tab ' +
+    (allRecords ? "active" : "") +
+    '" data-action="team-records" data-id="all">Tüm kayıtlar ve atamalar</button></div>' +
+    '<div class="stack"><section class="panel"><div class="panel-head"><h2>Portföyler</h2>' +
+    badge(properties.length) +
+    "</div>" +
+    assignmentRows(properties, "property") +
+    '</section><section class="panel"><div class="panel-head"><h2>Müşteriler</h2>' +
+    badge(customers.length) +
+    "</div>" +
+    assignmentRows(customers, "customer") +
+    "</section></div>" +
     footer()
   );
 }
@@ -1222,6 +1401,7 @@ export const renderers = {
   matching,
   pool,
   company,
+  team,
   settings,
   guide,
   search,

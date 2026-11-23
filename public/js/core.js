@@ -9,6 +9,8 @@
   filters: {},
   poolKind: "properties",
   companyTab: "members",
+  teamMemberId: null,
+  teamRecords: "selected",
   matchMode: "customer",
   matchId: null,
   dataLoaded: false,
@@ -120,6 +122,7 @@ export const labels = {
   sozlesme: "Sözleşme",
   takip: "Takip",
   telefon: "Telefon",
+  emlak: "Emlak",
   ilan: "İlan",
   whatsapp: "WhatsApp",
   ofis: "Ofis",
@@ -130,6 +133,19 @@ export const labels = {
   yatirim: "Yatırım",
 };
 export const label = (value) => labels[value] || value || "Belirtilmedi";
+export const normalizeLeadSource = (value) =>
+  !value ||
+  [
+    "telefon",
+    "ilan",
+    "whatsapp",
+    "ofis",
+    "tavsiye",
+    "sosyal_medya",
+    "diger",
+  ].includes(value)
+    ? "emlak"
+    : value;
 export const badge = (text, color = "") =>
   '<span class="badge ' + color + '">' + esc(text) + "</span>";
 export const statusBadge = (value) =>

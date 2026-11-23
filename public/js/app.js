@@ -5,6 +5,7 @@ import {
   networkKeyForm,
   networkConnectForm,
 } from "./office.js";
+import { distributionForm } from "./accounting.js";
 import { state, esc, icon, btn, api, loadData, toast, empty } from "./core.js";
 import { pages, shell, renderers, authView } from "./views.js";
 import {
@@ -128,6 +129,7 @@ const actions = {
   "network-revoke": (id) => mutate("/network/revoke", "POST", { id }),
   "new-staff": staffForm,
   "new-sale": saleForm,
+  "commission-detail": distributionForm,
   "new-award": awardForm,
   "close-dialog": () => closeDialog(),
   menu: () => document.querySelector(".shell")?.classList.toggle("nav-open"),
@@ -206,6 +208,15 @@ const actions = {
   },
   "company-tab": (id) => {
     state.companyTab = id;
+    return render();
+  },
+  "team-select": (id) => {
+    state.teamMemberId = id;
+    state.teamRecords = "selected";
+    return render();
+  },
+  "team-records": (id) => {
+    state.teamRecords = id === "all" ? "all" : "selected";
     return render();
   },
   "complete-task": (id) =>
@@ -389,6 +400,16 @@ document.addEventListener("change", async (event) => {
       );
       await refresh();
       toast("Departman güncellendi.");
+    } else if (el.dataset.recordAssign) {
+      el.disabled = true;
+      const path =
+        el.dataset.recordAssign === "property" ? "properties" : "customers";
+      await api("/" + path + "/" + encodeURIComponent(el.dataset.id), {
+        method: "PUT",
+        body: { assignedToUserId: el.value },
+      });
+      await refresh();
+      toast("Kayıt sorumlusu güncellendi.");
     } else if (el.dataset.filter && el.id !== "list-search") {
       state.filters[el.dataset.filter] =
         el.type === "checkbox" ? el.checked : el.value;
@@ -398,29 +419,12 @@ document.addEventListener("change", async (event) => {
     }
   } catch (error) {
     toast(error.message, true);
+    if (el.dataset.recordAssign) await render();
   } finally {
     el.disabled = false;
   }
 });
 document.addEventListener("input", (event) => {
-  const saleForm = document.getElementById("record-form");
-  const netOutput = document.getElementById("sale-net");
-  if (
-    netOutput &&
-    saleForm?.elements.gross &&
-    ["gross", "deductions"].includes(event.target.name)
-  ) {
-    const net =
-      Number(saleForm.elements.gross.value || 0) -
-      Number(saleForm.elements.deductions.value || 0);
-    netOutput.textContent =
-      "Net kazanç " +
-      new Intl.NumberFormat("tr-TR", {
-        style: "currency",
-        currency: "TRY",
-      }).format(net);
-  }
-
   if (event.target.id !== "list-search") return;
   state.filters.q = event.target.value;
   clearTimeout(searchTimer);
@@ -463,6 +467,48 @@ window.addEventListener("offline", () =>
   ),
 );
 window.addEventListener("online", () => toast("Bağlantı yeniden kuruldu."));
+let checkingAppVersion = false;
+async function refreshIfUpdated() {
+  if (
+    checkingAppVersion ||
+    isActiveForm() ||
+    document.getElementById("dialog")?.open
+  )
+    return;
+  checkingAppVersion = true;
+  try {
+    const currentScript = document.querySelector(
+      'script[type="module"][src^="/js/app.js"]',
+    );
+    const currentVersion = new URL(
+      currentScript?.src || "",
+      location.href,
+    ).searchParams.get("v");
+    if (!currentVersion) return;
+    const response = await fetch("/?check=" + Date.now(), {
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const latestVersion = (await response.text()).match(
+      /\/js\/app\.js\?v=([^"&]+)/,
+    )?.[1];
+    if (
+      latestVersion &&
+      latestVersion !== currentVersion &&
+      !isActiveForm() &&
+      !document.getElementById("dialog")?.open
+    )
+      location.reload();
+  } catch {
+    // An offline or interrupted check should not affect the current page.
+  } finally {
+    checkingAppVersion = false;
+  }
+}
+window.addEventListener("focus", refreshIfUpdated);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshIfUpdated();
+});
 async function boot() {
   try {
     localStorage.removeItem("emlak_crm_token");

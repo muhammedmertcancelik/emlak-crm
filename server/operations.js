@@ -2,6 +2,8 @@
 const crypto = require("node:crypto");
 const { withDBLock } = require("./db");
 const { hashPassword } = require("./auth");
+const { normalizeLeadSource } = require("./customer-source");
+const accounting = require("./accounting");
 const { parseBody, jsonResponse, fail, validateFields } = require("./security");
 const broker = (auth) => ["owner", "admin"].includes(auth.membership.role);
 const owns = (record, auth) =>
@@ -37,6 +39,7 @@ function requireBroker(auth) {
   if (!broker(auth)) fail("Bu işlem broker yetkisi gerektirir.", 403);
 }
 async function handle(req, res, auth, db, pathname) {
+  if (await accounting.handle(req, res, auth, db, pathname)) return true;
   if (await require("./network").handle(req, res, auth, db, pathname))
     return true;
   if (await require("./media").handle(req, res, auth, db, pathname))
@@ -82,6 +85,59 @@ async function handle(req, res, auth, db, pathname) {
         (item) => item.id === id && item.companyId === auth.companyId,
       );
     const merged = { ...existing, ...body };
+    if (
+      collection === "customers" &&
+      (merged.preferredFloorTypes || []).some(
+        (type) => !["zemin_kat", "ara_kat", "ust_kat"].includes(type),
+      )
+    )
+      fail("Tercih edilen kat konumu geçersiz.");
+    if (
+      collection === "customers" &&
+      !merged.preferredCity &&
+      (merged.preferredNeighborhoods || []).length
+    )
+      fail("Mahalle seçmek için önce il ve ilçe seçin.");
+    if (collection === "customers" && merged.preferredCity) {
+      const locations = require("../data/locations.json");
+      const city = locations.provinces.find(
+        (province) => province.name === merged.preferredCity,
+      );
+      if (!city) fail("Tercih edilen il geçersiz.");
+      const allowedDistricts = new Set(
+        locations.districts
+          .filter((district) => district.provinceId === city.id)
+          .map((district) => district.name),
+      );
+      if (
+        (merged.preferredDistricts || []).some(
+          (district) => !allowedDistricts.has(district),
+        )
+      )
+        fail("Tercih edilen ilçeler seçilen ile ait olmalı.");
+      const selectedDistrictIds = new Set(
+        locations.districts
+          .filter(
+            (district) =>
+              district.provinceId === city.id &&
+              (merged.preferredDistricts || []).includes(district.name),
+          )
+          .map((district) => district.id),
+      );
+      const allowedNeighborhoods = new Set(
+        locations.neighborhoods
+          .filter((neighborhood) =>
+            selectedDistrictIds.has(neighborhood.districtId),
+          )
+          .map((neighborhood) => neighborhood.name),
+      );
+      if (
+        (merged.preferredNeighborhoods || []).some(
+          (neighborhood) => !allowedNeighborhoods.has(neighborhood),
+        )
+      )
+        fail("Tercih edilen mahalleler seçilen ilçelere ait olmalı.");
+    }
     const assignedId =
       merged.assignedToUserId || existing?.createdById || auth.user.id;
     const member = members(db, auth.companyId).find(
@@ -182,8 +238,7 @@ async function handle(req, res, auth, db, pathname) {
       },
       ["username", "password", "fullName", "departmentId", "role"],
     );
-    if (!/^[a-zA-Z0-9._-]{3,64}$/.test(body.username))
-      fail("Kullanıcı adı 3–64 harf, rakam, nokta, alt çizgi içermeli.");
+    if (/\s/.test(body.username)) fail("Kullanıcı adında boşluk olmamalı.");
     if (!["agent", "secretary"].includes(body.role)) fail("Geçersiz rol.");
     const passwordHash = hashPassword(body.password);
     await withDBLock((data, save) => {
@@ -228,6 +283,8 @@ async function handle(req, res, auth, db, pathname) {
   if (pathname === "/api/sales" && req.method === "POST") {
     requireBroker(auth);
     const body = await parseBody(req);
+    const paymentEntry =
+      body.receivedAmount !== undefined || body.receivableAmount !== undefined;
     validateFields(
       body,
       {
@@ -239,20 +296,37 @@ async function handle(req, res, auth, db, pathname) {
         distributable: "number",
         shares: "array",
         requestId: "string",
+        receivedAmount: "number",
+        receivableAmount: "number",
+        isCredit: "boolean",
       },
       [
         "propertyId",
         "customerId",
         "advisorId",
-        "gross",
-        "deductions",
-        "distributable",
+        ...(paymentEntry
+          ? ["receivedAmount", "receivableAmount", "isCredit"]
+          : ["gross", "deductions", "distributable"]),
         "requestId",
       ],
     );
-    const gross = amount(body.gross),
-      deductions = amount(body.deductions),
-      distributable = amount(body.distributable);
+    if (
+      paymentEntry &&
+      ["gross", "deductions", "distributable", "shares"].some(
+        (key) => body[key] !== undefined,
+      )
+    )
+      fail(
+        "Tahsilat alanlarıyla eski komisyon alanları birlikte kullanılamaz.",
+      );
+    const receivedAmount = paymentEntry ? amount(body.receivedAmount) : null;
+    const receivableAmount = paymentEntry
+      ? amount(body.receivableAmount)
+      : null;
+    const totalAmount = paymentEntry ? receivedAmount + receivableAmount : null;
+    const gross = paymentEntry ? totalAmount : amount(body.gross),
+      deductions = paymentEntry ? 0 : amount(body.deductions),
+      distributable = paymentEntry ? 0 : amount(body.distributable);
     if (deductions > gross || distributable > gross - deductions)
       fail("Kesinti ve dağıtılacak tutar net kazancı aşamaz.");
     let sale;
@@ -295,16 +369,18 @@ async function handle(req, res, auth, db, pathname) {
         };
       });
       if (
-        shares.length !== targets.length ||
-        new Set(shares.map((s) => s.id)).size !== targets.length ||
-        shares.some(
-          (s) =>
-            !targets.some((t) => t.id === s.id) ||
-            !Number.isFinite(s.percent) ||
-            s.percent < 0 ||
-            s.percent > 100,
-        ) ||
-        Math.abs(shares.reduce((sum, s) => sum + s.percent, 0) - 100) > 0.00001
+        !paymentEntry &&
+        (shares.length !== targets.length ||
+          new Set(shares.map((s) => s.id)).size !== targets.length ||
+          shares.some(
+            (s) =>
+              !targets.some((t) => t.id === s.id) ||
+              !Number.isFinite(s.percent) ||
+              s.percent < 0 ||
+              s.percent > 100,
+          ) ||
+          Math.abs(shares.reduce((sum, s) => sum + s.percent, 0) - 100) >
+            0.00001)
       )
         fail("Şirket ve tüm departmanların payı toplam yüzde 100 olmalı.");
       let remaining = distributable;
@@ -326,18 +402,34 @@ async function handle(req, res, auth, db, pathname) {
         companyId,
         propertyId: prop.id,
         propertyTitle: prop.title,
+        transactionType: prop.status === "kiralik" ? "kiralik" : "satilik",
+        propertyType: prop.type,
+        portfolioSource: prop.portfolioSource || null,
         customerId: customer.id,
+        customerName: customer.name,
+        customerLeadSource: normalizeLeadSource(customer.leadSource),
         advisorId: member.userId,
         departmentId: member.departmentId,
+        departmentName:
+          departments.find((d) => d.id === member.departmentId)?.name || "",
+        ...(paymentEntry
+          ? {
+              receivedAmount,
+              receivableAmount,
+              totalAmount,
+              isCredit: body.isCredit,
+            }
+          : {}),
         gross,
         deductions,
         net: gross - deductions,
         distributable,
-        companyNet:
-          gross -
-          deductions -
-          distributable +
-          (allocations.find((a) => a.id === "company")?.cents || 0),
+        companyNet: paymentEntry
+          ? receivedAmount
+          : gross -
+            deductions -
+            distributable +
+            (allocations.find((a) => a.id === "company")?.cents || 0),
         allocations,
         createdAt: new Date().toISOString(),
         createdById: auth.user.id,
@@ -353,8 +445,25 @@ async function handle(req, res, auth, db, pathname) {
   }
   if (pathname === "/api/finance" && req.method === "GET") {
     requireBroker(auth);
+    const summary = accounting.overview(db, companyId);
     return send({
-      sales: (db.sales || []).filter((s) => s.companyId === companyId),
+      accounting: summary,
+      sales: (db.sales || [])
+        .filter((s) => s.companyId === companyId)
+        .map((sale) => {
+          const customer = (db.customers || []).find(
+            (c) => c.id === sale.customerId && c.companyId === companyId,
+          );
+          return {
+            ...sale,
+            distribution: summary.results.find((r) => r.saleId === sale.id),
+            customerName:
+              customer?.name || sale.customerName || "Silinmiş müşteri",
+            customerLeadSource: normalizeLeadSource(
+              customer?.leadSource ?? sale.customerLeadSource,
+            ),
+          };
+        }),
     });
   }
   if (pathname === "/api/reports" && req.method === "GET") {

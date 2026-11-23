@@ -1186,6 +1186,65 @@ dialog::backdrop {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+.team-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.6fr);
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.team-member-list {
+  display: grid;
+  padding: 8px;
+}
+.team-member {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.team-member:hover,
+.team-member.selected {
+  background: #edf3ff;
+}
+.team-member span:last-child {
+  min-width: 0;
+}
+.team-member strong,
+.team-member small {
+  display: block;
+}
+.team-member small {
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+.team-departments {
+  display: grid;
+  gap: 12px;
+}
+.team-departments > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.team-departments > div span {
+  color: var(--muted);
+  margin-right: auto;
+}
+@media (max-width: 800px) {
+  .team-layout {
+    grid-template-columns: 1fr;
+  }
+}
 .form-field {
   display: flex;
   flex-direction: column;
@@ -1198,6 +1257,61 @@ dialog::backdrop {
 .form-field .control {
   max-width: none;
   font-weight: 400;
+}
+.choice-picker {
+  gap: 0;
+  position: relative;
+}
+.choice-picker[open] {
+  z-index: 4;
+}
+.choice-picker summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 12px 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.choice-picker summary::-webkit-details-marker {
+  display: none;
+}
+.choice-picker summary::after {
+  content: "⌄";
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.choice-picker[open] summary {
+  border-radius: 9px 9px 0 0;
+}
+.choice-count {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.choice-options {
+  display: grid;
+  gap: 6px;
+  max-height: 210px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  box-shadow: 0 16px 36px #17243b22;
 }
 .form-field textarea {
   resize: vertical;
@@ -1909,4 +2023,82 @@ dialog::backdrop {
   }
 }
 
-.detail-video { width: 100%; max-height: 420px; }
+.detail-video {
+  width: 100%;
+  max-height: 420px;
+}
+.accounting-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.accounting-metric {
+  background: var(--surface, white);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 14px;
+  padding: 20px;
+}
+.accounting-metric span,
+.accounting-context span {
+  display: block;
+  color: var(--muted, #64748b);
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+}
+.accounting-metric strong {
+  font-size: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.accounting-cell-note {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted, #64748b);
+}
+.accounting-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+}
+.accounting-context strong {
+  overflow-wrap: anywhere;
+}
+.accounting-check {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 10px;
+  margin: 18px 0;
+}
+.accounting-check.complete {
+  background: #eaf6ef;
+  color: #166534;
+}
+.accounting-check.pending {
+  background: #fff7e6;
+  color: #854d0e;
+}
+.accounting-warnings {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.accounting-rules {
+  margin-top: 24px;
+}
+.accounting-rules > summary {
+  cursor: pointer;
+  padding: 20px;
+  font-weight: 600;
+}
+@media (max-width: 1000px) {
+  .accounting-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
+  .accounting-metrics,
+  .accounting-context {
+    grid-template-columns: 1fr;
+  }
+}

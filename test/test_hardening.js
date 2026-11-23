@@ -395,9 +395,33 @@ test("Payidar güvenlik ve veri bütünlüğü regresyonları", async (t) => {
         email: "private@example.test",
         notes: "Müşteri sırrı",
         totalBudget: 6000000,
+        preferredCity: "İstanbul",
         preferredDistricts: ["Kadıköy"],
       })
     ).data;
+    assert.equal(
+      (
+        await request("/api/customers", tokenA, {
+          name: "Geçersiz konum",
+          totalBudget: 1000000,
+          preferredCity: "Van",
+          preferredDistricts: ["Kadıköy"],
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (
+        await request("/api/customers", tokenA, {
+          name: "Geçersiz mahalle",
+          totalBudget: 1000000,
+          preferredCity: "Van",
+          preferredDistricts: ["İpekyolu"],
+          preferredNeighborhoods: ["Caferağa"],
+        })
+      ).status,
+      400,
+    );
     assert.equal(customer.kvkkConsent, false);
     assert.equal(customer.contactPermission, false);
     assert.equal(

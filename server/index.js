@@ -42,6 +42,7 @@ const {
   taskSchema,
 } = require("./security");
 const operations = require("./operations");
+const { customerLeadSource } = require("./customer-source");
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
@@ -167,6 +168,18 @@ function evaluateMatch(customer, property, isOwnerCompany = true) {
       ? customer.minBudget
       : null;
 
+  if (
+    customer.preferredCity &&
+    trLower(customer.preferredCity) !== trLower(property.city)
+  ) {
+    eliminated = true;
+    reasons.push({
+      text: "İl uyuşmuyor",
+      type: "warning",
+      detail: `Müşteri: ${customer.preferredCity} | İlan: ${property.city || "Belirtilmedi"}`,
+    });
+  }
+
   // 1. Bütçe Kontrolü (%30 Ağırlık)
   if (maxBudget != null) {
     if (property.price > maxBudget) {
@@ -221,6 +234,42 @@ function evaluateMatch(customer, property, isOwnerCompany = true) {
         detail: [property.neighborhood, property.district, property.city]
           .filter(Boolean)
           .join(", "),
+      });
+    }
+  }
+  if (customer.preferredNeighborhoods?.length) {
+    if (
+      !customer.preferredNeighborhoods.some(
+        (name) => trLower(name) === trLower(property.neighborhood),
+      )
+    ) {
+      eliminated = true;
+      reasons.push({
+        text: "Mahalle uyuşmuyor",
+        type: "warning",
+        detail: `Müşteri: ${customer.preferredNeighborhoods.join(", ")} | İlan: ${property.neighborhood || "Belirtilmedi"}`,
+      });
+    } else {
+      reasons.push({
+        text: "Mahalle uygun",
+        type: "positive",
+        detail: property.neighborhood,
+      });
+    }
+  }
+  if (customer.preferredFloorTypes?.length) {
+    if (!customer.preferredFloorTypes.includes(property.floorType)) {
+      eliminated = true;
+      reasons.push({
+        text: "Kat konumu uyuşmuyor",
+        type: "warning",
+        detail: `Müşteri: ${customer.preferredFloorTypes.join(", ")} | İlan: ${property.floorType || "Belirtilmedi"}`,
+      });
+    } else {
+      reasons.push({
+        text: "Kat konumu uygun",
+        type: "positive",
+        detail: property.floorType,
       });
     }
   }
@@ -1899,6 +1948,13 @@ async function handleRequest(req, res) {
             urgencyLevel: body.urgencyLevel || "orta",
             priceClass: body.priceClass || "B",
             contactName: body.contactName || "",
+            portfolioSource: body.portfolioSource
+              ? customerLeadSource(
+                  lockedDb,
+                  currentCompanyId,
+                  body.portfolioSource,
+                )
+              : null,
             contactPhone: body.contactPhone || "",
             notes: body.notes || "",
             images: Array.isArray(body.images) ? body.images : [],
@@ -2032,6 +2088,15 @@ async function handleRequest(req, res) {
 
           lockedDb.properties[idx] = {
             ...merged,
+            portfolioSource:
+              body.portfolioSource !== undefined
+                ? customerLeadSource(
+                    lockedDb,
+                    currentCompanyId,
+                    body.portfolioSource,
+                    existingProp.portfolioSource,
+                  )
+                : existingProp.portfolioSource || null,
             readinessChecklist: readiness.checklist,
             readinessScore: readiness.score,
             readinessPercentage: readiness.percentage,
@@ -2393,7 +2458,11 @@ async function handleRequest(req, res) {
             status: pStatus,
             pipelineStatus: pStatus,
             customerClass: assignedClass,
-            leadSource: body.leadSource || "telefon", // 'telefon' | 'ilan' | 'whatsapp' | 'ofis' | 'tavsiye' | 'sosyal_medya' | 'diger'
+            leadSource: customerLeadSource(
+              lockedDb,
+              currentCompanyId,
+              body.leadSource,
+            ),
             minBudget: minBud,
             maxBudget: maxBud,
             totalBudget: maxBud,
@@ -2405,6 +2474,7 @@ async function handleRequest(req, res) {
             usesCredit:
               body.usesCredit != null ? Boolean(body.usesCredit) : null,
             purchaseTimeline: body.purchaseTimeline || "1-3-ay",
+            preferredCity: body.preferredCity || "",
             preferredDistricts: Array.isArray(body.preferredDistricts)
               ? body.preferredDistricts
               : typeof body.preferredDistricts === "string"
@@ -2413,6 +2483,9 @@ async function handleRequest(req, res) {
                     .map((s) => s.trim())
                     .filter(Boolean)
                 : [],
+            preferredNeighborhoods: Array.isArray(body.preferredNeighborhoods)
+              ? body.preferredNeighborhoods
+              : [],
             preferredRooms: Array.isArray(body.preferredRooms)
               ? body.preferredRooms
               : typeof body.preferredRooms === "string"
@@ -2421,6 +2494,9 @@ async function handleRequest(req, res) {
                     .map((s) => s.trim())
                     .filter(Boolean)
                 : [],
+            preferredFloorTypes: Array.isArray(body.preferredFloorTypes)
+              ? body.preferredFloorTypes
+              : [],
             minNetArea:
               body.minNetArea != null ? Number(body.minNetArea) : null,
             maxBuildingAge:
@@ -2532,6 +2608,12 @@ async function handleRequest(req, res) {
           lockedDb.customers[idx] = {
             ...existingCust,
             ...body,
+            leadSource: customerLeadSource(
+              lockedDb,
+              currentCompanyId,
+              body.leadSource ?? existingCust.leadSource,
+              existingCust.leadSource,
+            ),
             totalBudget: maxBud,
             maxBudget: maxBud,
             pipelineStatus:
@@ -3083,7 +3165,7 @@ async function handleRequest(req, res) {
       "Content-Type":
         MIME_TYPES[path.extname(filePath).toLowerCase()] ||
         "application/octet-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-store, max-age=0",
     });
     res.end(req.method === "HEAD" ? undefined : content);
   } catch {

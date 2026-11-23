@@ -7,6 +7,7 @@ import {
   btn,
   options,
   field,
+  label,
 } from "./core.js";
 import { formDialog, showDialog } from "./forms.js";
 const table = (headers, rows) =>
@@ -56,13 +57,14 @@ export function saleForm() {
   const requestId = crypto.randomUUID();
   formDialog(
     "Satış bitir",
-    select(
-      "propertyId",
-      "Portföy",
-      state.properties
-        .filter((p) => !["satildi", "kiralandi"].includes(p.status))
-        .map((p) => [p.id, p.title]),
-    ) +
+    '<div class="form-grid">' +
+      select(
+        "propertyId",
+        "Portföy",
+        state.properties
+          .filter((p) => !["satildi", "kiralandi"].includes(p.status))
+          .map((p) => [p.id, p.title]),
+      ) +
       select(
         "customerId",
         "Müşteri",
@@ -76,106 +78,57 @@ export function saleForm() {
           .map((m) => [m.userId, m.fullName]),
       ) +
       field(
-        "gross",
-        "Ofisin brüt komisyon geliri (₺)",
-        "",
-        "number",
-        true,
-        'min="0" step="0.01"',
-      ) +
-      field(
-        "deductions",
-        "Kesintiler (₺)",
+        "receivedAmount",
+        "Alınan ücret (₺)",
         "0",
         "number",
         true,
         'min="0" step="0.01"',
       ) +
       field(
-        "distributable",
-        "Dağıtılacak tutar (₺)",
+        "receivableAmount",
+        "Alınacak ücret (₺)",
         "0",
         "number",
         true,
         'min="0" step="0.01"',
       ) +
-      '<output id="sale-net" class="notice">Net kazanç ₺0</output>' +
-      "<p>Net kazanç, brüt komisyon gelirinden kesintiler çıkarılarak hesaplanır. Dağıtım paylarının toplamı %100 olmalıdır.</p>" +
-      [{ id: "company", name: "Emlak şirketi" }, ...state.departments]
-        .map((d) =>
-          field(
-            "share-" + d.id,
-            d.name + " (%)",
-            d.id === "company" ? "100" : "0",
-            "number",
-            true,
-            'min="0" max="100" step="0.01"',
-          ),
-        )
-        .join(""),
+      field(
+        "totalAmount",
+        "Toplam ücret (₺)",
+        "0.00",
+        "number",
+        false,
+        'readonly step="0.01"',
+      ) +
+      '<label class="check-label"><input type="checkbox" name="isCredit">Kredili işlem</label></div>',
     async (_, values) => {
       const body = {
         requestId,
         propertyId: values.get("propertyId"),
         customerId: values.get("customerId"),
         advisorId: values.get("advisorId"),
-        gross: Number(values.get("gross")),
-        deductions: Number(values.get("deductions")),
-        distributable: Number(values.get("distributable")),
-        shares: [...values]
-          .filter(([k]) => k.startsWith("share-"))
-          .map(([k, v]) => k.slice(6) + "=" + v),
+        receivedAmount: Number(values.get("receivedAmount")),
+        receivableAmount: Number(values.get("receivableAmount")),
+        isCredit: values.has("isCredit"),
       };
       await api("/sales", { method: "POST", body });
     },
+    [],
+    "Alınan ücret, ofise fiilen giren net komisyondur. Alınacak ücret tahsil edilene kadar dağıtıma girmez.",
   );
+  document.getElementById("record-form").addEventListener("input", (event) => {
+    if (!["receivedAmount", "receivableAmount"].includes(event.target.name))
+      return;
+    const fields = event.currentTarget.elements;
+    const received = Math.round(Number(fields.receivedAmount.value || 0) * 100);
+    const receivable = Math.round(
+      Number(fields.receivableAmount.value || 0) * 100,
+    );
+    fields.totalAmount.value = ((received + receivable) / 100).toFixed(2);
+  });
 }
-export async function financeView() {
-  if (!manager()) return "<p>Broker yetkisi gereklidir.</p>";
-  const { sales } = await api("/finance");
-  const total = (key) => currency(sales.reduce((sum, s) => sum + s[key], 0));
-  return (
-    '<div class="page-heading"><h1>Muhasebe</h1>' +
-    btn("Satış bitir", "new-sale", "", "primary") +
-    "</div>" +
-    table(
-      ["Net kazanç", "Dağıtılan tutar", "Şirket kasasına kalan"],
-      [[total("net"), total("distributable"), total("companyNet")]],
-    ) +
-    table(
-      [
-        "Tarih",
-        "Portföy",
-        "Brüt komisyon",
-        "Kesintiler",
-        "Net kazanç",
-        "Dağıtılacak tutar",
-        "Şirket kasası",
-      ],
-      sales.map((s) => [
-        new Date(s.createdAt).toLocaleDateString("tr-TR"),
-        s.propertyTitle,
-        currency(s.gross),
-        currency(s.deductions),
-        currency(s.net),
-        currency(s.distributable),
-        currency(s.companyNet),
-      ]),
-    ) +
-    "<h2>Dağıtım dökümü</h2>" +
-    table(
-      ["Portföy", "Pay sahibi", "Yüzde", "Tutar"],
-      sales.flatMap((s) =>
-        s.allocations.map((a) => [
-          s.propertyTitle,
-          a.name,
-          a.percent,
-          currency(a.cents),
-        ]),
-      ),
-    )
-  );
-}
+export { financeView } from "./accounting.js";
 export async function reportsView() {
   if (!manager()) return "<p>Broker yetkisi gereklidir.</p>";
   const report = await api(
@@ -335,19 +288,23 @@ export async function salesView() {
       [
         "Tarih",
         "Portföy",
+        "Müşteriyi getiren",
         "Satışı bitiren",
-        "Brüt komisyon",
-        "Kesintiler",
-        "Net kazanç",
+        "Alınan ücret",
+        "Alınacak ücret",
+        "Toplam ücret",
+        "Kredili işlem",
       ],
       sales.map((s) => [
         new Date(s.createdAt).toLocaleDateString("tr-TR"),
         s.propertyTitle,
+        label(s.customerLeadSource),
         state.members.find((m) => m.userId === s.advisorId)?.fullName ||
           "Eski çalışan",
-        currency(s.gross),
-        currency(s.deductions),
-        currency(s.net),
+        currency(s.receivedAmount),
+        currency(s.receivableAmount),
+        currency(s.totalAmount ?? s.gross),
+        s.isCredit === undefined ? "—" : s.isCredit ? "Evet" : "Hayır",
       ]),
     )
   );

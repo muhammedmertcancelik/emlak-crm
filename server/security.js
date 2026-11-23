@@ -80,6 +80,7 @@ const numbers = (words) =>
 const booleans = (words) =>
   Object.fromEntries(words.split(" ").map((k) => [k, "boolean"]));
 const propertySchema = {
+  portfolioSource: "string",
   ...strings(
     "title description type status currency portfolioCode neighborhood siteName district city address floorType rooms facade heating furnishedStatus tenantStatus deedStatus legalEncumbrance authorizationStatus saleReason urgencyLevel priceClass contactName contactPhone notes priceChangeNote",
   ),
@@ -98,7 +99,7 @@ const propertySchema = {
 };
 const customerSchema = {
   ...strings(
-    "name phone email status pipelineStatus customerClass leadSource purchaseTimeline furnishedPreference purpose investmentGoal notes lastContactDate nextMeetingDate",
+    "name phone email status pipelineStatus customerClass leadSource purchaseTimeline furnishedPreference purpose investmentGoal notes lastContactDate nextMeetingDate preferredCity",
   ),
   ...numbers(
     "minBudget maxBudget totalBudget downPayment minNetArea maxBuildingAge maxMonthlyDues",
@@ -111,7 +112,9 @@ const customerSchema = {
   preferredTypes: "array",
   preferredStatuses: "array",
   preferredDistricts: "array",
+  preferredNeighborhoods: "array",
   preferredRooms: "array",
+  preferredFloorTypes: "array",
 };
 const taskSchema = {
   ...strings(
@@ -136,6 +139,7 @@ function validateFields(body, schema, required = []) {
     price: "Fiyat",
     name: "Ad",
     fullName: "Ad soyad",
+    username: "Kullanıcı adı",
     companyName: "Ofis adı",
     password: "Parola",
     email: "E-posta",

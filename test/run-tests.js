@@ -11,6 +11,7 @@ try {
     "test_e2e_api.js",
     "test_hardening.js",
     "test_office.js",
+    "test_accounting.js",
     "test_frontend.js",
     "test_ui.js",
   ]) {

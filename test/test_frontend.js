@@ -43,6 +43,7 @@ const { pathToFileURL } = require("node:url");
       phone: "555",
       status: "yeni",
       totalBudget: 6000000,
+      preferredCity: "İstanbul",
       preferredDistricts: ["Kadıköy"],
       preferredRooms: ["3+1"],
     },
@@ -96,11 +97,13 @@ const { pathToFileURL } = require("node:url");
     path.join(__dirname, "../public/index.html"),
     "utf8",
   );
-  for (const match of html.matchAll(/(?:src|href)="(\/[^"#]*)"/g))
+  for (const match of html.matchAll(/(?:src|href)="(\/[^"#]*)"/g)) {
+    const assetPath = match[1].split("?")[0];
     assert.ok(
-      fs.existsSync(path.join(__dirname, "../public", match[1])),
+      fs.existsSync(path.join(__dirname, "../public", assetPath)),
       "Missing asset " + match[1],
     );
+  }
   assert.ok(!/\s(?:onclick|onchange|onerror|onsubmit)="/.test(html));
   console.log(
     "PASS: 10 ekran, 3 giriş görünümü, XSS kaçışı, güvenli URL, İstanbul tarihi ve statik dosya bağlantıları.",

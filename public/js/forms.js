@@ -7,6 +7,7 @@ import {
   badge,
   statusBadge,
   label,
+  normalizeLeadSource,
   money,
   date,
   manager,
@@ -50,6 +51,7 @@ const kinds = {
 };
 const pBasic = [
   ["title", "Portföy başlığı", "text", true],
+  ["portfolioSource", "Portföy kaynağı", [], true],
   ["portfolioCode", "Portföy kodu"],
   ["status", "İlan durumu", ["satilik", "kiralik", "satildi", "kiralandi"]],
   [
@@ -81,6 +83,15 @@ const pBuilding = [
   ],
   ["floor", "Bulunduğu kat", "number"],
   ["totalFloors", "Toplam kat", "number"],
+  [
+    "floorType",
+    "Kat konumu",
+    [
+      ["ara_kat", "Ara kat"],
+      ["zemin_kat", "Zemin kat"],
+      ["ust_kat", "Üst kat"],
+    ],
+  ],
   ["bathrooms", "Banyo sayısı", "number"],
   [
     "heating",
@@ -175,6 +186,11 @@ const pPrivate = [
 const cBasic = [
   ["name", "Ad soyad", "text", true],
   ["phone", "Telefon", "tel", true],
+  ["minBudget", "En düşük bütçe (₺)", "number"],
+  ["totalBudget", "En yüksek bütçe (₺)", "number", true],
+  ["preferredCity", "Tercih edilen il", [], true],
+  ["preferredDistricts", "Tercih edilen ilçeler", "list"],
+  ["preferredNeighborhoods", "Tercih edilen mahalleler", "list"],
   [
     "pipelineStatus",
     "Görüşme aşaması",
@@ -188,9 +204,6 @@ const cBasic = [
       "pasif",
     ],
   ],
-  ["minBudget", "En düşük bütçe (₺)", "number"],
-  ["totalBudget", "En yüksek bütçe (₺)", "number", true],
-  ["preferredDistricts", "Tercih edilen ilçeler", "list"],
   [
     "preferredRooms",
     "Tercih edilen odalar",
@@ -203,6 +216,11 @@ const cBasic = [
   ],
   ["preferredStatuses", "İşlem türleri", "checks:satilik|kiralik"],
   [
+    "preferredFloorTypes",
+    "Tercih edilen kat konumu",
+    "checks:zemin_kat|ara_kat|ust_kat",
+  ],
+  [
     "customerClass",
     "Öncelik",
     [
@@ -212,11 +230,7 @@ const cBasic = [
       ["D", "D · Düşük öncelik"],
     ],
   ],
-  [
-    "leadSource",
-    "Talep kaynağı",
-    ["telefon", "ilan", "whatsapp", "ofis", "tavsiye", "sosyal_medya", "diger"],
-  ],
+  ["leadSource", "Talep kaynağı", [["emlak", "Emlak"]]],
 ];
 const cDetails = [
   [
@@ -244,6 +258,28 @@ const cConsent = [
   ["kvkkConsent", "Kişisel veri işleme onayı kaydedildi", "checkbox"],
   ["contactPermission", "İletişim izni alındı", "checkbox"],
 ];
+const compactChoiceKeys = new Set([
+  "preferredDistricts",
+  "preferredNeighborhoods",
+  "preferredRooms",
+  "preferredTypes",
+  "preferredStatuses",
+  "preferredFloorTypes",
+]);
+const floorChoiceLabel = (value) =>
+  ({ zemin_kat: "Zemin kat", ara_kat: "Ara kat", ust_kat: "Üst kat" })[value] ||
+  label(value);
+function updateChoiceCount(fieldset) {
+  const summary = fieldset
+    ?.closest("details.choice-picker")
+    ?.querySelector(".choice-count");
+  if (summary) {
+    const count = fieldset.querySelectorAll(
+      'input[type="checkbox"]:checked',
+    ).length;
+    summary.textContent = count ? count + " seçildi" : "Seçilmedi";
+  }
+}
 function control(spec, data) {
   const [key, title, type = "text", required = false] = spec;
   let value = data[key] ?? "";
@@ -253,29 +289,62 @@ function control(spec, data) {
     ' id="' + id + '" name="' + key + '"' + (required ? " required" : "");
   const caption =
     esc(title) + (required ? ' <span class="required">*</span>' : "");
-  if (typeof type === "string" && type.startsWith("checks:"))
+  if (typeof type === "string" && type.startsWith("checks:")) {
+    const choices = type.slice(7).split("|").filter(Boolean);
+    const choiceHtml = choices.length
+      ? choices
+          .map(
+            (v) =>
+              '<label class="check-label"><input type="checkbox" name="' +
+              key +
+              '" value="' +
+              esc(v) +
+              '"' +
+              ((data[key] || []).includes(v) ? " checked" : "") +
+              ">" +
+              esc(
+                key === "preferredFloorTypes" ? floorChoiceLabel(v) : label(v),
+              ) +
+              "</label>",
+          )
+          .join("")
+      : key === "preferredDistricts" || key === "preferredNeighborhoods"
+        ? '<p class="muted small">' +
+          (key === "preferredDistricts"
+            ? "Önce bir il seçin."
+            : "Önce ilçe seçin.") +
+          "</p>"
+        : "";
+    const fieldset =
+      '<fieldset class="choice-options" id="' +
+      id +
+      '" aria-label="' +
+      esc(title) +
+      '">' +
+      choiceHtml +
+      "</fieldset>";
+    if (compactChoiceKeys.has(key))
+      return (
+        '<details class="form-field choice-picker"><summary><span>' +
+        esc(title) +
+        '</span><span class="choice-count">' +
+        ((data[key] || []).length
+          ? (data[key] || []).length + " seçildi"
+          : "Seçilmedi") +
+        "</span></summary>" +
+        fieldset +
+        "</details>"
+      );
     return (
-      '<fieldset class="form-field"><legend>' +
+      '<fieldset class="form-field" id="' +
+      id +
+      '"><legend>' +
       esc(title) +
       "</legend>" +
-      type
-        .slice(7)
-        .split("|")
-        .map(
-          (v) =>
-            '<label class="check-label"><input type="checkbox" name="' +
-            key +
-            '" value="' +
-            esc(v) +
-            '"' +
-            ((data[key] || []).includes(v) ? " checked" : "") +
-            ">" +
-            esc(label(v)) +
-            "</label>",
-        )
-        .join("") +
+      choiceHtml +
       "</fieldset>"
     );
+  }
   if (type === "checkbox")
     return (
       '<label class="check-label"><input type="checkbox" name="' +
@@ -402,14 +471,27 @@ export async function openForm(kind, id = "", seed = {}) {
       tenantStatus: "bos",
       authorizationStatus: "bekliyor",
       urgencyLevel: "orta",
+      portfolioSource: id ? "" : "emlak",
       ...data,
     };
-    const locations = await api(
-      "/locations?city=" +
-        encodeURIComponent(data.city) +
-        "&district=" +
-        encodeURIComponent(data.district || ""),
-    );
+    const [locations, members] = await Promise.all([
+      api(
+        "/locations?city=" +
+          encodeURIComponent(data.city) +
+          "&district=" +
+          encodeURIComponent(data.district || ""),
+      ),
+      api("/companies/members"),
+    ]);
+    state.members = members;
+    pBasic.find((spec) => spec[0] === "portfolioSource")[2] = [
+      ["", "Kaynak seçin"],
+      ["emlak", "Emlak"],
+      ...members
+        .filter((m) => m.role === "agent")
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, "tr"))
+        .map((m) => [m.fullName, m.fullName]),
+    ];
     for (const [key, values] of [
       ["city", locations.cities],
       ["district", locations.districts],
@@ -464,21 +546,59 @@ export async function openForm(kind, id = "", seed = {}) {
     data = {
       pipelineStatus: "yeni",
       customerClass: "B",
-      leadSource: "telefon",
+      leadSource: "emlak",
       purchaseTimeline: "1-3-ay",
       purpose: "oturum",
       ...data,
     };
     data.pipelineStatus = data.pipelineStatus || data.status;
-    const locations = await api(
-      "/locations?city=" +
-        encodeURIComponent(state.session.company.city || "İstanbul"),
-    );
+    data.leadSource = normalizeLeadSource(data.leadSource);
+    data.preferredCity = data.preferredCity || "";
+    const [locations, members] = await Promise.all([
+      api("/locations?city=" + encodeURIComponent(data.preferredCity)),
+      api("/companies/members"),
+    ]);
+    state.members = members;
+    const advisorNames = [
+      ...new Set(
+        members.filter((m) => m.role === "agent").map((m) => m.fullName),
+      ),
+    ].sort((a, b) => a.localeCompare(b, "tr"));
+    cBasic.find((spec) => spec[0] === "preferredCity")[2] = [
+      ["", "İl seçin"],
+      ...locations.cities,
+    ];
     cBasic.find((spec) => spec[0] === "preferredDistricts")[2] =
       "checks:" + locations.districts.join("|");
-    specs = [...cBasic, ...cDetails, ...cConsent];
+    const selectedDistricts = (data.preferredDistricts || []).filter(
+      (district) => locations.districts.includes(district),
+    );
+    const neighborhoodLists = await Promise.all(
+      selectedDistricts.map((district) =>
+        api(
+          "/locations?city=" +
+            encodeURIComponent(data.preferredCity) +
+            "&district=" +
+            encodeURIComponent(district),
+        ),
+      ),
+    );
+    cBasic.find((spec) => spec[0] === "preferredNeighborhoods")[2] =
+      "checks:" +
+      [
+        ...new Set(neighborhoodLists.flatMap((item) => item.neighborhoods)),
+      ].join("|");
+    const customerBasic = cBasic.map((spec) =>
+      spec[0] === "leadSource"
+        ? [
+            ...spec.slice(0, 2),
+            [...spec[2], ...advisorNames.map((name) => [name, name])],
+          ]
+        : spec,
+    );
+    specs = [...customerBasic, ...cDetails, ...cConsent];
     html =
-      group(cBasic, data) +
+      group(customerBasic, data) +
       section("Talep ayrıntıları ve notlar", cDetails, data) +
       section(
         "İzin kayıtları",
@@ -910,8 +1030,21 @@ export async function customerDetail(id) {
       ' <span class="small muted">üst bütçe</span></div><dl class="info-grid">' +
       [
         ["Telefon", c.phone],
-        ["Bölgeler", (c.preferredDistricts || []).join(", ")],
+        [
+          "Bölgeler",
+          [
+            c.preferredCity,
+            ...(c.preferredDistricts || []),
+            ...(c.preferredNeighborhoods || []),
+          ]
+            .filter(Boolean)
+            .join(", "),
+        ],
         ["Oda tercihleri", (c.preferredRooms || []).join(", ")],
+        [
+          "Kat tercihi",
+          (c.preferredFloorTypes || []).map(floorChoiceLabel).join(", "),
+        ],
         ["Alım amacı", label(c.purpose)],
         ["Alım zamanı", c.purchaseTimeline],
         ["En az alan", (c.minNetArea || "—") + " m²"],
@@ -1119,6 +1252,109 @@ export function isActiveForm() {
 if (typeof document !== "undefined")
   document.addEventListener("change", async (event) => {
     const key = event.target.id;
+    if (event.target.type === "checkbox") {
+      const choiceFieldset = event.target.closest("fieldset.choice-options");
+      updateChoiceCount(choiceFieldset);
+      const choicePicker = choiceFieldset?.closest("details.choice-picker");
+      if (choicePicker) choicePicker.open = false;
+    }
+    if (event.target.name === "preferredDistricts") {
+      const form = document.getElementById("record-form");
+      const fieldset = document.getElementById("field-preferredNeighborhoods");
+      if (!form?.elements.preferredCity || !fieldset) return;
+      const city = form.elements.preferredCity.value;
+      const districts = [
+        ...form.querySelectorAll('[name="preferredDistricts"]:checked'),
+      ].map((element) => element.value);
+      const previous = new Set(
+        [
+          ...fieldset.querySelectorAll(
+            '[name="preferredNeighborhoods"]:checked',
+          ),
+        ].map((element) => element.value),
+      );
+      fieldset.disabled = true;
+      try {
+        const lists = await Promise.all(
+          districts.map((district) =>
+            api(
+              "/locations?city=" +
+                encodeURIComponent(city) +
+                "&district=" +
+                encodeURIComponent(district),
+            ),
+          ),
+        );
+        if (
+          !form.isConnected ||
+          form.elements.preferredCity.value !== city ||
+          districts.join("|") !==
+            [...form.querySelectorAll('[name="preferredDistricts"]:checked')]
+              .map((element) => element.value)
+              .join("|")
+        )
+          return;
+        const neighborhoods = [
+          ...new Set(lists.flatMap((item) => item.neighborhoods)),
+        ];
+        fieldset.innerHTML = neighborhoods.length
+          ? neighborhoods
+              .map(
+                (neighborhood) =>
+                  '<label class="check-label"><input type="checkbox" name="preferredNeighborhoods" value="' +
+                  esc(neighborhood) +
+                  '"' +
+                  (previous.has(neighborhood) ? " checked" : "") +
+                  ">" +
+                  esc(neighborhood) +
+                  "</label>",
+              )
+              .join("")
+          : '<p class="muted small">Önce ilçe seçin.</p>';
+        updateChoiceCount(fieldset);
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        if (fieldset.isConnected) fieldset.disabled = false;
+      }
+      return;
+    }
+    if (key === "field-preferredCity") {
+      const form = document.getElementById("record-form");
+      const fieldset = document.getElementById("field-preferredDistricts");
+      if (!form?.elements.preferredCity || !fieldset) return;
+      const city = form.elements.preferredCity.value;
+      const neighborhoods = document.getElementById(
+        "field-preferredNeighborhoods",
+      );
+      if (neighborhoods)
+        neighborhoods.innerHTML = '<p class="muted small">Önce ilçe seçin.</p>';
+      updateChoiceCount(neighborhoods);
+      fieldset.disabled = true;
+      try {
+        const data = await api("/locations?city=" + encodeURIComponent(city));
+        if (!form.isConnected || form.elements.preferredCity.value !== city)
+          return;
+        fieldset.innerHTML = data.districts.length
+          ? data.districts
+              .map(
+                (district) =>
+                  '<label class="check-label"><input type="checkbox" name="preferredDistricts" value="' +
+                  esc(district) +
+                  '">' +
+                  esc(district) +
+                  "</label>",
+              )
+              .join("")
+          : '<p class="muted small">Önce bir il seçin.</p>';
+        updateChoiceCount(fieldset);
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        if (fieldset.isConnected) fieldset.disabled = false;
+      }
+      return;
+    }
     if (!["field-city", "field-district"].includes(key)) return;
     const form = document.getElementById("record-form");
     if (

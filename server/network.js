@@ -95,7 +95,10 @@ const customerProjection = (customer) => ({
   id: customer.id,
   name: "Müşteri talebi",
   totalBudget: customer.totalBudget,
+  preferredCity: customer.preferredCity || "",
   preferredDistricts: customer.preferredDistricts || [],
+  preferredNeighborhoods: customer.preferredNeighborhoods || [],
+  preferredFloorTypes: customer.preferredFloorTypes || [],
   preferredRooms: customer.preferredRooms || [],
   preferredTypes: customer.preferredTypes || [],
   preferredStatuses: customer.preferredStatuses || [],
@@ -184,6 +187,9 @@ async function exchange(req, res) {
       fail("Geçersiz müşteri talebi.");
     for (const key of [
       "preferredDistricts",
+      "preferredNeighborhoods",
+      "preferredFloorTypes",
+      "preferredCity",
       "preferredRooms",
       "preferredTypes",
       "preferredStatuses",

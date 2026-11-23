@@ -111,6 +111,33 @@ const server = require("../server/index");
   });
   assert.equal(property.status, 201);
   assert.equal(customer.status, 201);
+  assert.equal(customer.data.leadSource, "emlak");
+  assert.equal(
+    (
+      await request(
+        "/customers/" + customer.data.id,
+        token,
+        {
+          leadSource: "Ofiste olmayan danışman",
+        },
+        "PUT",
+      )
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await request(
+        "/customers/" + customer.data.id,
+        token,
+        {
+          leadSource: "danisman2",
+        },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
   assert.equal((await request("/customers", agent)).data.length, 1);
   assert.equal((await request("/customers", second)).data.length, 0);
   assert.equal(
@@ -170,6 +197,8 @@ const server = require("../server/index");
   );
   const closed = await request("/sales", token, sale);
   assert.equal(closed.status, 201);
+  assert.equal(closed.data.customerLeadSource, "danisman2");
+  assert.equal(closed.data.advisorId, advisorId);
   assert.equal(closed.data.net, 9000000);
   assert.equal(closed.data.companyNet, 7000000);
   assert.equal((await request("/sales", token, sale)).data.id, closed.data.id);
@@ -183,6 +212,27 @@ const server = require("../server/index");
     409,
   );
   assert.equal((await request("/finance", token)).data.sales.length, 1);
+  assert.equal(
+    (await request("/finance", token)).data.sales[0].customerLeadSource,
+    "danisman2",
+  );
+  assert.equal(
+    (
+      await request(
+        "/customers/" + customer.data.id,
+        token,
+        {
+          leadSource: "emlak",
+        },
+        "PUT",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await request("/finance", token)).data.sales[0].customerLeadSource,
+    "emlak",
+  );
   assert.equal(
     (await request("/properties/" + property.data.id, token)).data.status,
     "satildi",
@@ -202,6 +252,52 @@ const server = require("../server/index");
     ).status,
     200,
   );
+  for (const isCredit of [true, false]) {
+    const paymentProperty = await request("/properties", token, {
+      title: "Tahsilat testi",
+      price: 5000000,
+      type: "daire",
+      status: "satilik",
+    });
+    assert.equal(paymentProperty.status, 201);
+    const paymentSale = {
+      requestId: crypto.randomUUID(),
+      propertyId: paymentProperty.data.id,
+      customerId: customer.data.id,
+      advisorId,
+      receivedAmount: 1234.56,
+      receivableAmount: 789.01,
+      isCredit,
+    };
+    for (const invalid of [
+      { receivedAmount: -1 },
+      { receivableAmount: null },
+      { isCredit: "yes" },
+      { totalAmount: 1 },
+      { gross: 1 },
+    ]) {
+      assert.equal(
+        (await request("/sales", token, { ...paymentSale, ...invalid })).status,
+        400,
+      );
+    }
+    const paymentResult = await request("/sales", token, paymentSale);
+    assert.equal(paymentResult.status, 201);
+    assert.equal(paymentResult.data.receivedAmount, 123456);
+    assert.equal(paymentResult.data.receivableAmount, 78901);
+    assert.equal(paymentResult.data.totalAmount, 202357);
+    assert.equal(paymentResult.data.companyNet, 123456);
+    assert.equal(paymentResult.data.isCredit, isCredit);
+    assert.equal(
+      (await request("/sales", token, paymentSale)).data.id,
+      paymentResult.data.id,
+    );
+    const savedPayment = (await request("/finance", token)).data.sales.find(
+      (s) => s.id === paymentResult.data.id,
+    );
+    assert.equal(savedPayment.totalAmount, 202357);
+    assert.equal(savedPayment.isCredit, isCredit);
+  }
   const loc = await request(
     "/locations?city=" +
       encodeURIComponent("İstanbul") +

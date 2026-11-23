@@ -105,11 +105,75 @@ function pass(name) {
   pass("Giriş ve HttpOnly oturum ile genel bakış");
   click("new-customer");
   await until(() => document.getElementById("field-name"), "customer form");
+  assert.deepEqual(
+    [...document.querySelector('[name="leadSource"]').options].map(
+      (o) => o.textContent,
+    ),
+    ["Emlak"],
+  );
+  assert.equal(input("preferredCity", "").value, "");
+  assert.equal(
+    document.querySelectorAll('[name="preferredDistricts"]').length,
+    0,
+  );
+  assert.match(
+    document.getElementById("field-preferredDistricts").textContent,
+    /Önce bir il seçin/,
+  );
+  assert.equal(
+    document.getElementById("field-preferredDistricts").closest("details").open,
+    false,
+  );
   input("name", "Selin Test");
   input("phone", "05320000000");
   input("totalBudget", "8000000");
-  for (const el of document.querySelectorAll('[name="preferredDistricts"]'))
-    el.checked = ["Kadıköy", "Üsküdar"].includes(el.value);
+  input("preferredCity", "Van").dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
+  await until(
+    () =>
+      [...document.querySelectorAll('[name="preferredDistricts"]')].some(
+        (el) => el.value === "İpekyolu",
+      ),
+    "Van districts",
+  );
+  const districtPicker = document
+    .getElementById("field-preferredDistricts")
+    .closest("details");
+  districtPicker.open = true;
+  document
+    .querySelector('[name="preferredDistricts"][value="İpekyolu"]')
+    .click();
+  assert.equal(districtPicker.open, false);
+  districtPicker.open = true;
+  document
+    .querySelector('[name="preferredDistricts"][value="Edremit"]')
+    .click();
+  assert.equal(districtPicker.open, false);
+  assert.match(
+    districtPicker.querySelector("summary").textContent,
+    /2 seçildi/,
+  );
+  await until(
+    () =>
+      document.querySelector(
+        '[name="preferredNeighborhoods"][value="Bahçıvan"]',
+      ),
+    "Van neighborhoods",
+  );
+  document.querySelector(
+    '[name="preferredNeighborhoods"][value="Bahçıvan"]',
+  ).checked = true;
+  document
+    .querySelector('[name="preferredFloorTypes"][value="ara_kat"]')
+    .click();
+  assert.match(
+    document
+      .getElementById("field-preferredFloorTypes")
+      .closest("details")
+      .querySelector("summary").textContent,
+    /1 seçildi/,
+  );
   submit("record-form");
   const { state } = await import(
     pathToFileURL(path.join(__dirname, "../public/js/core.js"))
@@ -120,11 +184,48 @@ function pass(name) {
     "customer saved",
   );
   assert.deepEqual(state.customers[0].preferredDistricts, [
-    "Kadıköy",
-    "Üsküdar",
+    "Edremit",
+    "İpekyolu",
   ]);
+  assert.equal(state.customers[0].preferredCity, "Van");
+  assert.deepEqual(state.customers[0].preferredNeighborhoods, ["Bahçıvan"]);
+  assert.deepEqual(state.customers[0].preferredFloorTypes, ["ara_kat"]);
   assert.equal(state.customers[0].kvkkConsent, false);
   pass("Müşteri formu, liste alanları ve varsayılan izinler");
+  location.hash = "customers";
+  await until(
+    () => document.querySelector('[data-action="edit-customer"]'),
+    "customer list",
+  );
+  click("edit-customer", state.customers[0].id);
+  await until(
+    () => document.getElementById("field-preferredCity"),
+    "customer edit form",
+  );
+  assert.equal(input("preferredCity", "Van").value, "Van");
+  assert.deepEqual(
+    [...document.querySelectorAll('[name="preferredDistricts"]:checked')]
+      .map((el) => el.value)
+      .sort(),
+    ["Edremit", "İpekyolu"],
+  );
+  assert.equal(
+    document.querySelector('[name="preferredNeighborhoods"][value="Bahçıvan"]')
+      ?.checked,
+    true,
+  );
+  assert.equal(
+    document.querySelector('[name="preferredFloorTypes"][value="ara_kat"]')
+      ?.checked,
+    true,
+  );
+  click("close-dialog");
+  pass("Müşteri düzenlemede il ve ilçe seçimleri korunuyor");
+  location.hash = "properties";
+  await until(
+    () => document.querySelector('[data-action="new-property"]'),
+    "property list",
+  );
   click("new-property");
   await until(() => document.getElementById("field-title"), "property form");
   input("title", '<img src=x onerror="alert(1)"> Test portföy');
@@ -153,6 +254,11 @@ function pass(name) {
     "property edit",
   );
   pass("Portföy detayı, düzenleme ve fiyat geçmişi");
+  location.hash = "tasks";
+  await until(
+    () => document.querySelector('[data-action="new-task"]'),
+    "task list",
+  );
   click("new-task");
   await until(() => document.getElementById("field-dueDate"), "task form");
   input("title", "Selin Hanım ile görüşme");
@@ -190,7 +296,21 @@ function pass(name) {
   location.hash = "matching";
   await until(() => document.querySelector(".selector-list"), "matching route");
   click("match-select", state.customers[0].id);
+  await until(
+    () =>
+      document
+        .querySelector(".split-layout > .panel:nth-child(2) .panel-head h2")
+        ?.textContent.includes(state.customers[0].name),
+    "matching result loaded",
+  );
+  const allMatches = document.querySelector('[data-filter="allMatches"]');
+  allMatches.checked = true;
+  allMatches.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
   await until(() => document.querySelector(".match-card"), "matching results");
+  assert.match(
+    document.querySelector(".match-card").textContent,
+    /İl uyuşmuyor/,
+  );
   pass("Gerçek API ile eşleştirme ve nedenler");
   location.hash = "company";
   await until(
@@ -300,21 +420,98 @@ function pass(name) {
   );
   pass("Broker panelinden kullanıcı adı ve parola ile danışman oluşturma");
   const advisor = state.members.find((m) => m.fullName === "Test Danışman");
+  const { openForm } = await import(
+    pathToFileURL(path.join(__dirname, "../public/js/forms.js"))
+  );
+  // Form must fetch the latest staff even if this tab's member cache is stale.
+  state.members = [];
+  await openForm("customer");
+  assert.deepEqual(
+    [...document.querySelector('[name="leadSource"]').options].map(
+      (o) => o.textContent,
+    ),
+    ["Emlak", "Test Danışman"],
+  );
+  click("close-dialog");
+  location.hash = "team";
+  await until(
+    () => document.querySelector('[data-action="team-select"]'),
+    "team page",
+  );
+  click("team-select", advisor.userId);
+  await until(
+    () => document.querySelector('[data-member-dept="' + advisor.id + '"]'),
+    "advisor detail",
+  );
+  assert.equal(
+    document.querySelector('[data-member-dept="' + advisor.id + '"]').value,
+    state.departments[0].id,
+  );
+  click("team-records", "all");
+  await until(
+    () => document.querySelector('[data-record-assign="property"]'),
+    "team assignments",
+  );
+  const propertyAssignment = document.querySelector(
+    '[data-record-assign="property"][data-id="' + state.properties[0].id + '"]',
+  );
+  propertyAssignment.value = advisor.userId;
+  propertyAssignment.dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
+  await until(
+    () => state.properties[0].assignedToUserId === advisor.userId,
+    "property assigned",
+  );
+  const customerAssignment = document.querySelector(
+    '[data-record-assign="customer"][data-id="' + state.customers[0].id + '"]',
+  );
+  customerAssignment.value = advisor.userId;
+  customerAssignment.dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
+  await until(
+    () => state.customers[0].assignedToUserId === advisor.userId,
+    "customer assigned",
+  );
+  click("team-records", "selected");
+  await until(
+    () => document.querySelectorAll("[data-record-assign]").length === 2,
+    "advisor records",
+  );
+  pass("Departmanlar ve ekip ekranında portföy ve müşteri ataması");
   location.hash = "sales";
   await until(
     () => document.querySelector('[data-action="new-sale"]'),
     "sales route",
   );
   click("new-sale");
-  await until(() => document.querySelector('[name="gross"]'), "sale form");
+  await until(
+    () => document.querySelector('[name="receivedAmount"]'),
+    "sale form",
+  );
   input("propertyId", state.properties[0].id);
-  input("customerId", state.customers[0].id);
+  input("customerId", state.customers[0].id).dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
   input("advisorId", advisor.userId);
-  input("gross", "100000");
-  input("deductions", "10000");
-  input("distributable", "40000");
-  input("share-company", "50");
-  input("share-" + state.departments[0].id, "50");
+  input("receivedAmount", "70000").dispatchEvent(
+    new dom.window.Event("input", { bubbles: true }),
+  );
+  input("receivableAmount", "30000").dispatchEvent(
+    new dom.window.Event("input", { bubbles: true }),
+  );
+  assert.equal(
+    document.querySelector('[name="totalAmount"]').value,
+    "100000.00",
+  );
+  assert.equal(document.querySelector('[name="totalAmount"]').readOnly, true);
+  assert.equal(document.querySelectorAll('[name="isCredit"]').length, 1);
+  document.querySelector('[name="isCredit"]').click();
+  assert.equal(
+    document.querySelector('[name="gross"], [name^="share-"]'),
+    null,
+  );
   submit("record-form");
   await until(
     () =>
@@ -324,10 +521,96 @@ function pass(name) {
   );
   location.hash = "finance";
   await until(
-    () => document.querySelector("main")?.textContent.includes("₺70.000"),
+    () =>
+      document.querySelector("main h1")?.textContent === "Muhasebe" &&
+      document.querySelector("main")?.textContent.includes("₺70.000"),
     "finance result",
   );
-  pass("Satış bitirme, departman dağıtımı ve şirket kasası");
+  pass("Tek satış formunda tahsilat, otomatik toplam ve kredili işlem");
+  const financeTable = [...document.querySelectorAll("main table")].find(
+    (table) =>
+      table.querySelector("thead").textContent.includes("Müşteriyi getiren"),
+  );
+  assert.ok(financeTable);
+  assert.match(financeTable.querySelector("tbody").textContent, /Emlak/);
+  assert.match(financeTable.querySelector("tbody").textContent, /₺30.000/);
+  assert.match(financeTable.querySelector("tbody").textContent, /₺100.000/);
+  assert.match(financeTable.querySelector("tbody").textContent, /Evet/);
+  assert.equal(document.querySelector('main [data-action="new-sale"]'), null);
+  click(
+    "commission-detail",
+    document.querySelector('[data-action="commission-detail"]').dataset.id,
+  );
+  await until(
+    () => document.querySelector('[name="departmentKey"]'),
+    "distribution form",
+  );
+  input("departmentKey", "rental").dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
+  await until(
+    () =>
+      document
+        .getElementById("distribution-preview")
+        ?.textContent.includes("Dağılım toplamı: %90"),
+    "company source distribution",
+  );
+  assert.match(
+    document.getElementById("distribution-preview").textContent,
+    /Dağıtılmamış: %10/,
+  );
+  assert.equal(
+    document.querySelector('#record-form [type="submit"]').textContent,
+    "Taslağı kaydet",
+  );
+  submit("record-form");
+  await until(
+    () => !document.getElementById("dialog").open,
+    "distribution draft saved",
+  );
+  for (const kind of ["property", "customer"]) {
+    const record =
+      kind === "property" ? state.properties[0] : state.customers[0];
+    await openForm(kind, record.id);
+    input(
+      kind === "property" ? "portfolioSource" : "leadSource",
+      advisor.fullName,
+    );
+    submit("record-form");
+    await until(
+      () => !document.getElementById("dialog").open,
+      "contributor saved",
+    );
+  }
+  click(
+    "commission-detail",
+    document.querySelector('[data-action="commission-detail"]').dataset.id,
+  );
+  await until(
+    () =>
+      document
+        .getElementById("distribution-preview")
+        ?.textContent.includes("Dağılım toplamı: %100"),
+    "advisor source distribution",
+  );
+  assert.match(
+    document.getElementById("distribution-preview").textContent,
+    /%45/,
+  );
+  assert.equal(
+    document.querySelector('#record-form [type="submit"]').textContent,
+    "Dağıtımı kesinleştir",
+  );
+  submit("record-form");
+  await until(
+    () =>
+      !document.getElementById("dialog").open &&
+      document.querySelector("main")?.textContent.includes("31.500,00"),
+    "beneficiary total",
+  );
+  pass(
+    "Muhasebede %90 taslak, %100 kesinleştirme ve aynı danışmana %45 hak ediş",
+  );
   location.hash = "reports";
   await until(
     () => document.querySelector("main")?.textContent.includes("Test Danışman"),
