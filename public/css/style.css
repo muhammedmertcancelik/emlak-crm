@@ -19,6 +19,58 @@
 body {
   margin: 0;
 }
+.nav-scrim {
+  display: none;
+}
+.main,
+.panel,
+.stack,
+.dashboard-grid > *,
+.accounting-metric,
+.metric,
+.global-search {
+  min-width: 0;
+}
+.main {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .topbar .global-search {
+    display: none;
+  }
+  .topbar-right {
+    min-width: 0;
+    margin-left: auto;
+  }
+  .topbar-right > .btn {
+    flex-shrink: 0;
+  }
+  .page-heading,
+  .welcome-banner {
+    flex-wrap: wrap;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metric-value {
+    overflow-wrap: anywhere;
+  }
+}
+details.panel > summary,
+.panel > details > summary {
+  padding: 18px 22px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.panel > details + details {
+  border-top: 1px solid var(--line);
+}
+.panel-body > .btn {
+  margin: 8px 6px 0 0;
+}
+.panel-body > p + p {
+  margin-top: 8px;
+}
 button,
 input,
 select,

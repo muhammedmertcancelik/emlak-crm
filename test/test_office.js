@@ -36,6 +36,10 @@ const server = require("../server/index");
     },
   });
   assert.equal(department.status, 201);
+  assert.equal(
+    (await request("/departments", token, { name: "Genel Kordinasyon" })).status,
+    409,
+  );
   const dept = department.data.department.id;
   for (const [username, role] of [
     ["danisman1", "agent"],
@@ -242,16 +246,6 @@ const server = require("../server/index");
     reports.ranking.find((r) => r.id === advisorId).revenue,
     7000000,
   );
-  assert.equal(
-    (
-      await request("/awards", token, {
-        month: reports.month,
-        criterion: "sales",
-        userId: advisorId,
-      })
-    ).status,
-    200,
-  );
   for (const isCredit of [true, false]) {
     const paymentProperty = await request("/properties", token, {
       title: "Tahsilat testi",
@@ -391,6 +385,47 @@ const server = require("../server/index");
     ).status,
     401,
   );
+  const departmentPath = "/departments/" + dept;
+  assert.equal(
+    (await request(departmentPath, agent, null, "DELETE")).status,
+    403,
+  );
+  assert.equal(
+    (await request(departmentPath, token, null, "DELETE")).status,
+    200,
+  );
+  const remainingDepartments = (await request("/departments", token)).data;
+  assert.ok(!remainingDepartments.some((item) => item.id === dept));
+  const coordination = remainingDepartments.find((item) => item.permanent);
+  assert.equal(coordination.name, "Genel Koordinasyon");
+  assert.equal(
+    (await request("/departments/" + coordination.id, token, null, "DELETE")).status,
+    409,
+  );
+  const remainingMembers = (await request("/companies/members", token)).data;
+  assert.equal(
+    remainingMembers.find((member) => member.userId === advisorId).departmentId,
+    null,
+  );
+  const advisorPath = "/staff/" + remainingMembers.find(
+    (member) => member.userId === advisorId,
+  ).id;
+  assert.equal((await request(advisorPath, agent, null, "DELETE")).status, 403);
+  assert.equal((await request(advisorPath, token, null, "DELETE")).status, 200);
+  assert.equal((await request("/auth/me", agent)).status, 401);
+  const staffAfterRemoval = (await request("/companies/members", token)).data;
+  assert.ok(!staffAfterRemoval.some((member) => member.userId === advisorId));
+  const brokerId = (await request("/auth/me", token)).data.user.id;
+  for (const path of [
+    "/properties/" + property.data.id,
+    "/customers/" + customer.data.id,
+  ]) {
+    const record = await request(path, token);
+    assert.equal(record.status, 200);
+    assert.equal(record.data.assignedToUserId, brokerId);
+    assert.equal((await request(path, token, null, "DELETE")).status, 200);
+    assert.equal((await request(path, token)).status, 404);
+  }
   console.log(
     "PASS: üç rol, kullanıcı adı, atama izolasyonu, fotoğraf sınırı, satış ve muhasebe, tekrar deneme, rapor, konum ve ortak ağ anahtarı.",
   );

@@ -105,9 +105,11 @@ for (const cents of [1, 2, 3, 7, 99, 101, 1234567, 100000000000000]) {
 }
 {
   const db = fixture();
-  db.users[0].fullName = organization.coordinator;
-  db.customers[0].leadSource = organization.coordinator;
-  db.properties[0].portfolioSource = organization.coordinator;
+  db.departments.push({
+    companyId: "office",
+    permanent: true,
+    leaderUserId: "a",
+  });
   assert.equal(
     preview(db, sale).beneficiaries.find((b) => b.id === "a").percent,
     48,
@@ -122,6 +124,87 @@ for (const cents of [1, 2, 3, 7, 99, 101, 1234567, 100000000000000]) {
   const missing = preview(db, sale);
   assert.equal(missing.canFinalize, false);
   assert.ok(missing.warnings.some((w) => w.includes("Portföy kaynağını")));
+}
+{
+  const db = fixture();
+  for (const [id, role] of [
+    ["c2", "agent"],
+    ["sec", "secretary"],
+    ["other-sec", "secretary"],
+    ["d2", "agent"],
+  ]) {
+    db.users.push({ id, fullName: id });
+    db.companyMemberships.push({
+      userId: id,
+      companyId: "office",
+      role,
+      status: "active",
+    });
+  }
+  db.departments.push({
+    companyId: "office",
+    permanent: true,
+    leaderUserId: "sec",
+  });
+  for (const [customerSourceId, propertySourceId, expected] of [
+    ["b", "c2", 2500000],
+    ["b", "b", 2500000],
+    ["a", "a", 4500000],
+    ["emlak", "b", 3000000],
+    ["emlak", "emlak", 3500000],
+  ]) {
+    const result = preview(db, {
+      ...sale,
+      receivedAmount: 7000000,
+      receivableAmount: 3000000,
+      totalAmount: 10000000,
+      customerSourceId,
+      propertySourceId,
+    });
+    assert.equal(result.canFinalize, true);
+    assert.equal(result.baseCents, 10000000);
+    assert.equal(
+      result.beneficiaries.find((row) => row.id === "a").cents,
+      expected,
+    );
+    assert.equal(
+      result.lines.find((row) => row.key === "corporate").cents,
+      4000000,
+    );
+    assert.equal(
+      result.lines.find((row) => row.key === "office").cents,
+      400000,
+    );
+    const coordination = result.lines.find((row) => row.key === "coordination");
+    assert.equal(coordination.recipientId, "sec");
+    assert.equal(coordination.recipientName, "Genel danışman");
+    assert.equal(coordination.cents, 300000);
+    assert.ok(!result.lines.some((row) => row.key.startsWith("secretary")));
+    const team = result.lines.filter((row) => row.key.startsWith("team-"));
+    assert.deepEqual(
+      team.map((row) => row.recipientId),
+      ["b", "c2", "d2"],
+    );
+    assert.equal(
+      team.reduce((sum, row) => sum + row.cents, 0),
+      800000,
+    );
+    assert.equal(
+      result.beneficiaries.reduce((sum, row) => sum + row.cents, 0),
+      10000000,
+    );
+  }
+  db.departments.at(-1).leaderUserId = "d2";
+  const result = preview(db, {
+    ...sale,
+    receivedAmount: 7000000,
+    totalAmount: 10000000,
+    customerSourceId: "emlak",
+    propertySourceId: "emlak",
+  });
+  assert.equal(result.lines.find((row) => row.key === "coordination").recipientId, "d2");
+  assert.ok(!result.lines.some((row) => row.key === "team-d2"));
+  assert.equal(result.totalPercent, 100);
 }
 process.env.PORT = "0";
 const server = require("../server/index");

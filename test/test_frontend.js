@@ -66,7 +66,15 @@ const { pathToFileURL } = require("node:url");
   };
   global.fetch = async (url) => ({
     ok: true,
-    json: async () => fixtures[url] || [],
+    json: async () => {
+      if (url.startsWith("/api/records/"))
+        return { items: [], total: 0, page: 1 };
+      if (url.startsWith("/api/broker/audit"))
+        return { items: [], total: 0, page: 1 };
+      if (url === "/api/broker/overview")
+        return { expenses: [], receipts: [], ledger: [] };
+      return fixtures[url] || [];
+    },
   });
   for (const name of Object.keys(views.renderers)) {
     state.page = name;

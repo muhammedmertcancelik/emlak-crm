@@ -1,13 +1,18 @@
 import {
   staffForm,
   saleForm,
-  awardForm,
   networkKeyForm,
   networkConnectForm,
 } from "./office.js";
-import { distributionForm } from "./accounting.js";
+import { distributionForm, rulesForm, paymentForm } from "./accounting.js";
 import { state, esc, icon, btn, api, loadData, toast, empty } from "./core.js";
 import { pages, shell, renderers, authView } from "./views.js";
+import {
+  receiptForm,
+  expenseForm,
+  voidExpense,
+  correctSale,
+} from "./broker.js";
 import {
   closeDialog,
   showDialog,
@@ -124,16 +129,41 @@ async function mutate(
   toast(message);
 }
 const actions = {
+  receipt: receiptForm,
+  "new-expense": expenseForm,
+  "void-expense": voidExpense,
+  "correct-sale": correctSale,
+  "cancel-sale": (id) => correctSale(id, true),
+  "audit-page": (page) => {
+    state.filters.auditPage = Number(page);
+    return render();
+  },
+  "list-page": (page) => {
+    state.filters.page = Number(page);
+    return render();
+  },
+  "read-task": (id) =>
+    mutate(
+      "/followups/" + encodeURIComponent(id) + "/read",
+      "POST",
+      {},
+      "Okundu olarak işaretlendi.",
+    ),
   "network-key": networkKeyForm,
   "network-connect": networkConnectForm,
   "network-revoke": (id) => mutate("/network/revoke", "POST", { id }),
   "new-staff": staffForm,
   "new-sale": saleForm,
   "commission-detail": distributionForm,
-  "new-award": awardForm,
+  "distribution-rules": rulesForm,
+  "distribution-paid": (id) => paymentForm(id),
+  "distribution-undo": (id) => paymentForm(id, true),
   "close-dialog": () => closeDialog(),
   menu: () => document.querySelector(".shell")?.classList.toggle("nav-open"),
-  navigate: (id) => navigate(id),
+  navigate: (id) => {
+    closeDialog();
+    navigate(id);
+  },
   "auth-login": () => auth("login"),
   "auth-register": () => auth("register"),
   "toggle-password": () => {
@@ -259,6 +289,19 @@ const actions = {
         "DELETE",
         {},
         "Müşteri silindi.",
+      );
+  },
+  "delete-advisor": (id) => {
+    if (
+      confirm(
+        "Danışmanı ekipten silmek istiyor musunuz? Danışmanın bu şirkete erişimi kapanır. Portföyleri, müşterileri ve görevleri size devredilir.",
+      )
+    )
+      return mutate(
+        "/staff/" + encodeURIComponent(id),
+        "DELETE",
+        undefined,
+        "Danışman silindi.",
       );
   },
   "delete-department": (id) => {
@@ -411,6 +454,8 @@ document.addEventListener("change", async (event) => {
       await refresh();
       toast("Kayıt sorumlusu güncellendi.");
     } else if (el.dataset.filter && el.id !== "list-search") {
+      state.filters.page = 1;
+      state.filters.auditPage = 1;
       state.filters[el.dataset.filter] =
         el.type === "checkbox" ? el.checked : el.value;
       state.filters.advanced =
@@ -427,6 +472,7 @@ document.addEventListener("change", async (event) => {
 document.addEventListener("input", (event) => {
   if (event.target.id !== "list-search") return;
   state.filters.q = event.target.value;
+  state.filters.page = 1;
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 250);
 });
@@ -446,6 +492,34 @@ window.addEventListener("session-expired", () => {
   auth();
   toast("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.", true);
 });
+setInterval(async () => {
+  if (!state.session || document.hidden) return;
+  const session = state.session;
+  try {
+    const tasks = await api("/followups?onlyMine=true");
+    if (state.session !== session) return;
+    const known = new Set(state.tasks.map((task) => task.id));
+    const fresh = tasks.filter((task) => !known.has(task.id) && !task.readAt);
+    const ownIds = new Set(tasks.map((task) => task.id));
+    state.tasks = [
+      ...state.tasks.filter(
+        (task) =>
+          task.assignedToUserId !== session.user.id && !ownIds.has(task.id),
+      ),
+      ...tasks,
+    ];
+    if (fresh.length) toast(fresh.length + " yeni görev atandı.");
+    const link = document.querySelector('a[href="#inbox"]');
+    if (link) {
+      const unread = tasks.filter((task) => !task.readAt).length;
+      link.setAttribute("title", unread + " okunmamış görev");
+      const badge = link.querySelector(".nav-count");
+      if (badge) badge.textContent = unread;
+    }
+    if (state.page === "inbox" && !document.getElementById("dialog").open)
+      await render();
+  } catch {}
+}, 30000);
 document.addEventListener("keydown", (event) => {
   if (
     event.key === "/" &&

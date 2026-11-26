@@ -12,6 +12,7 @@ const os = require("os");
 const crypto = require("crypto");
 
 const {
+  isCoordinationName,
   readDB,
   writeDB,
   withDBLock,
@@ -1005,6 +1006,7 @@ async function handleRequest(req, res) {
     }
 
     const currentCompanyId = auth.companyId;
+    Object.assign(require("./request-context").getStore() || {}, { auth });
     const currentUserId = auth.user.id;
     const currentRole = auth.membership ? auth.membership.role : "agent";
     const isOwnerOrAdmin = currentRole === "owner" || currentRole === "admin";
@@ -1283,6 +1285,8 @@ async function handleRequest(req, res) {
       if (!name || !name.trim()) {
         return jsonResponse(res, 400, { error: "Departman adı zorunludur." });
       }
+      if (isCoordinationName(name))
+        return jsonResponse(res, 409, { error: "Genel Koordinasyon zaten mevcut." });
 
       return withDBLock(async (lockedDb, save) => {
         lockedDb.departments = lockedDb.departments || [];
@@ -1354,7 +1358,23 @@ async function handleRequest(req, res) {
         if (!dept)
           return jsonResponse(res, 404, { error: "Departman bulunamadı." });
 
-        if (body.name) dept.name = body.name.trim();
+        if (
+          !dept.permanent &&
+          isCoordinationName(body.name)
+        )
+          return jsonResponse(res, 409, { error: "Genel Koordinasyon zaten mevcut." });
+        if (
+          dept.permanent &&
+          body.leaderUserId &&
+          !lockedDb.companyMemberships.some(
+            (m) =>
+              m.companyId === currentCompanyId &&
+              m.userId === body.leaderUserId &&
+              m.status === "active",
+          )
+        )
+          return jsonResponse(res, 400, { error: "Aktif bir ekip üyesi seçin." });
+        if (body.name && !dept.permanent) dept.name = body.name.trim();
         if (body.icon) dept.icon = body.icon.trim();
         if (body.color) dept.color = body.color.trim();
         if (body.description !== undefined)
@@ -1410,6 +1430,8 @@ async function handleRequest(req, res) {
         );
         if (idx === -1)
           return jsonResponse(res, 404, { error: "Departman bulunamadı." });
+        if (lockedDb.departments[idx].permanent)
+          return jsonResponse(res, 409, { error: "Genel Koordinasyon silinemez." });
 
         lockedDb.departments.splice(idx, 1);
 
@@ -1875,7 +1897,23 @@ async function handleRequest(req, res) {
         enrichedList.sort(
           (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
         );
-        return jsonResponse(res, 200, enrichedList);
+        return jsonResponse(
+          res,
+          200,
+          query.compact === "true"
+            ? enrichedList.map(
+                ({
+                  images,
+                  videos,
+                  documents,
+                  description,
+                  notes,
+                  priceHistory,
+                  ...row
+                }) => ({ ...row, images: images?.slice(0, 1) || [] }),
+              )
+            : enrichedList,
+        );
       }
 
       if (req.method === "POST") {
@@ -2426,7 +2464,13 @@ async function handleRequest(req, res) {
         list.sort(
           (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
         );
-        return jsonResponse(res, 200, list);
+        return jsonResponse(
+          res,
+          200,
+          query.compact === "true"
+            ? list.map(({ notes, ...row }) => row)
+            : list,
+        );
       }
 
       if (req.method === "POST") {
@@ -2782,13 +2826,15 @@ async function handleRequest(req, res) {
         return withDBLock(async (lockedDb, save) => {
           const newFollowUp = {
             id: "task-" + crypto.randomUUID(),
+            createdById: currentUserId,
+            readAt: null,
             companyId: currentCompanyId,
             assignedToUserId: body.assignedToUserId || currentUserId,
             title: body.title || "Takip Görevi",
             type: body.type || "yapilacak",
             relatedPropertyId: body.relatedPropertyId || null,
             relatedCustomerId: body.relatedCustomerId || null,
-            dueDate: body.dueDate || new Date().toISOString(),
+            dueDate: body.dueDate || null,
             notes: body.notes || "",
             isCompleted: false,
             completedAt: null,
@@ -2796,10 +2842,21 @@ async function handleRequest(req, res) {
           };
 
           lockedDb.followUps = lockedDb.followUps || [];
-          lockedDb.followUps.unshift(newFollowUp);
+          const recipients = [...new Set(body.assignedUserIds || [body.assignedToUserId || currentUserId])];
+          if (!recipients.length || recipients.some(userId =>
+            typeof userId !== "string" ||
+            (!isOwnerOrAdmin && userId !== currentUserId) ||
+            !(lockedDb.companyMemberships || []).some(m => m.companyId === currentCompanyId && m.userId === userId && m.status === "active")
+          )) return jsonResponse(res, 400, { error: "Geçerli danışmanlar seçin." });
+          const tasks = recipients.map((userId, index) => ({
+            ...newFollowUp,
+            id: index === 0 ? newFollowUp.id : "task-" + crypto.randomUUID(),
+            assignedToUserId: userId,
+          }));
+          lockedDb.followUps.unshift(...tasks);
           save(lockedDb);
 
-          return jsonResponse(res, 201, newFollowUp);
+          return jsonResponse(res, 201, tasks[0]);
         });
       }
     }
@@ -2819,6 +2876,8 @@ async function handleRequest(req, res) {
             error: "Yalnızca size atanan görevi değiştirebilirsiniz.",
           });
         fu.isCompleted = !fu.isCompleted;
+        if (fu.assignedToUserId === currentUserId)
+          fu.readAt ||= new Date().toISOString();
         fu.completedAt = fu.isCompleted ? new Date().toISOString() : null;
         save(lockedDb);
         return jsonResponse(res, 200, fu);
@@ -2847,6 +2906,7 @@ async function handleRequest(req, res) {
             error: "Yalnızca size atanan görevi düzenleyebilirsiniz.",
           });
         Object.assign(task, body, { updatedAt: new Date().toISOString() });
+        task.readAt = null;
         save(lockedDb);
         return jsonResponse(res, 200, task);
       });
@@ -3173,16 +3233,18 @@ async function handleRequest(req, res) {
   }
 }
 const server = http.createServer((req, res) => {
-  handleRequest(req, res).catch((err) => {
-    if (res.writableEnded) return;
-    if (!err.status) console.error("Request failed:", err);
-    if (res.headersSent) return res.end();
-    jsonResponse(res, err.status || 500, {
-      error: err.status
-        ? err.message
-        : "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
-    });
-  });
+  require("./request-context").run({}, () =>
+    handleRequest(req, res).catch((err) => {
+      if (res.writableEnded) return;
+      if (!err.status) console.error("Request failed:", err);
+      if (res.headersSent) return res.end();
+      jsonResponse(res, err.status || 500, {
+        error: err.status
+          ? err.message
+          : "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+      });
+    }),
+  );
 });
 server.requestTimeout = 30000;
 server.headersTimeout = 15000;

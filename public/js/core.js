@@ -248,7 +248,10 @@ export function toast(message, error = false) {
   const node = document.createElement("div");
   node.className = "toast" + (error ? " error" : "");
   node.textContent = message;
-  document.getElementById("toasts").append(node);
+  const container = document.getElementById("toasts");
+  if (!container) return;
+  while (container.children.length >= 3) container.firstElementChild.remove();
+  container.append(node);
   setTimeout(() => node.remove(), 6000);
 }
 export async function api(path, { method = "GET", body, signal } = {}) {
@@ -278,8 +281,8 @@ export async function api(path, { method = "GET", body, signal } = {}) {
 export async function loadData() {
   const [properties, customers, tasks, members, departments] =
     await Promise.all([
-      api("/properties?includeArchived=true"),
-      api("/customers"),
+      api("/properties?includeArchived=true&compact=true"),
+      api("/customers?compact=true"),
       api("/followups"),
       api("/companies/members"),
       api("/departments"),

@@ -22,6 +22,39 @@ const DATA_FILE = process.env.CRM_DATA_FILE
 // Eşzamanlı yazma isteklerini sıraya dizen işlem kuyruğu (Mutex)
 let dbLockQueue = Promise.resolve();
 
+const coordinationName = "Genel Koordinasyon";
+function isCoordinationName(name) {
+  return ["genel koordinasyon", "genel kordinasyon"].includes(
+    name?.trim().toLocaleLowerCase("tr-TR"),
+  );
+}
+
+function ensureCoordinationDepartments(data) {
+  data.departments ||= [];
+  for (const company of data.companies || []) {
+    const id = "coordination-" + company.id;
+    let department = data.departments.find(
+      (d) =>
+        d.companyId === company.id &&
+        (d.id === id || isCoordinationName(d.name)),
+    );
+    if (!department) {
+      department = {
+        id,
+        companyId: company.id,
+        name: coordinationName,
+        leaderUserId: null,
+        assignedUserIds: [],
+        customCriteria: {},
+      };
+      data.departments.push(department);
+    }
+    department.permanent = true;
+    department.name = coordinationName;
+  }
+  return data;
+}
+
 function readDB() {
   try {
     if (!fs.existsSync(DATA_FILE)) {
@@ -41,7 +74,7 @@ function readDB() {
       };
     }
     const raw = fs.readFileSync(DATA_FILE, "utf8");
-    return JSON.parse(raw);
+    return ensureCoordinationDepartments(JSON.parse(raw));
   } catch (err) {
     console.error("Veritabanı okuma hatası:", err);
     throw err;
@@ -49,7 +82,7 @@ function readDB() {
 }
 
 function writeDB(data) {
-  data.departments ||= [];
+  ensureCoordinationDepartments(data);
   for (const member of data.companyMemberships || []) {
     if (
       !["agent", "secretary"].includes(member.role) ||
@@ -66,6 +99,7 @@ function writeDB(data) {
           d.assignedUserIds?.includes(member.userId),
       );
     if (!department) {
+      if (member.departmentId === null) continue;
       const id = "general-" + member.companyId;
       department = data.departments.find((d) => d.id === id);
       if (!department) {
@@ -119,7 +153,52 @@ function writeDB(data) {
 function withDBLock(operationFn) {
   const nextLock = dbLockQueue.then(async () => {
     const db = readDB();
+    const auth = require("./request-context").getStore()?.auth;
+    const tracked = ["properties", "customers", "followUps", "sales"];
+    const before = auth
+      ? Object.fromEntries(
+          tracked.map((key) => [
+            key,
+            new Map(
+              (db[key] || [])
+                .filter((row) => row.companyId === auth.companyId)
+                .map((row) => [row.id, JSON.stringify(row)]),
+            ),
+          ]),
+        )
+      : null;
     const save = (newDb) => {
+      if (before) {
+        newDb.auditLogs ||= [];
+        for (const key of tracked) {
+          const current = new Map(
+            (newDb[key] || [])
+              .filter((row) => row.companyId === auth.companyId)
+              .map((row) => [row.id, JSON.stringify(row)]),
+          );
+          for (const id of new Set([
+            ...before[key].keys(),
+            ...current.keys(),
+          ])) {
+            if (before[key].get(id) === current.get(id)) continue;
+            const old = before[key].get(id);
+            const next = current.get(id);
+            const record = JSON.parse(next || old);
+            newDb.auditLogs.push({
+              id: crypto.randomUUID(),
+              companyId: auth.companyId,
+              userId: auth.user.id,
+              action:
+                key + (old ? (next ? "_updated" : "_deleted") : "_created"),
+              recordId: id,
+              details:
+                record.title || record.name || record.propertyTitle || id,
+              createdAt: new Date().toISOString(),
+            });
+          }
+          before[key] = current;
+        }
+      }
       writeDB(newDb);
     };
     return await operationFn(db, save);
@@ -242,6 +321,7 @@ function maskCustomerForPool(customer, ownerCompany = null) {
 }
 
 module.exports = {
+  isCoordinationName,
   DATA_FILE,
   readDB,
   writeDB,

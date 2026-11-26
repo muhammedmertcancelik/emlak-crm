@@ -117,6 +117,7 @@ const customerSchema = {
   preferredFloorTypes: "array",
 };
 const taskSchema = {
+  assignedUserIds: "array",
   ...strings(
     "title type relatedPropertyId relatedCustomerId assignedToUserId dueDate notes",
   ),
@@ -226,7 +227,7 @@ function validateBody(body, pathname, method) {
     validateFields(
       body,
       taskSchema,
-      method === "POST" ? ["title", "dueDate"] : [],
+      method === "POST" ? ["title"] : [],
     );
   if (pathname === "/api/auth/register")
     validateFields(

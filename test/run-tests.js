@@ -12,6 +12,7 @@ try {
     "test_hardening.js",
     "test_office.js",
     "test_accounting.js",
+    "test_broker.js",
     "test_frontend.js",
     "test_ui.js",
   ]) {

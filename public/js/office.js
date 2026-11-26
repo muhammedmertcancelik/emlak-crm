@@ -55,6 +55,10 @@ export function staffForm() {
 export function saleForm() {
   if (!manager()) return;
   const requestId = crypto.randomUUID();
+  const advisors = state.members
+    .filter((m) => m.role === "agent")
+    .map((m) => [m.userId, m.fullName]);
+  const sources = [["emlak", "Emlak"], ...advisors];
   formDialog(
     "Satış bitir",
     '<div class="form-grid">' +
@@ -70,16 +74,12 @@ export function saleForm() {
         "Müşteri",
         state.customers.map((c) => [c.id, c.name]),
       ) +
-      select(
-        "advisorId",
-        "Satışı bitiren danışman",
-        state.members
-          .filter((m) => m.role === "agent")
-          .map((m) => [m.userId, m.fullName]),
-      ) +
+      select("advisorId", "Satışı bitiren danışman", advisors) +
+      select("customerSourceId", "Müşteri kaynağı", sources) +
+      select("propertySourceId", "Ürün kaynağı", sources) +
       field(
         "receivedAmount",
-        "Alınan ücret (₺)",
+        "Emlak komisyonu alınan ücret (₺)",
         "0",
         "number",
         true,
@@ -87,7 +87,7 @@ export function saleForm() {
       ) +
       field(
         "receivableAmount",
-        "Alınacak ücret (₺)",
+        "Emlak komisyonu alınacak ücret (₺)",
         "0",
         "number",
         true,
@@ -95,7 +95,7 @@ export function saleForm() {
       ) +
       field(
         "totalAmount",
-        "Toplam ücret (₺)",
+        "Toplam emlak komisyonu (₺)",
         "0.00",
         "number",
         false,
@@ -108,6 +108,8 @@ export function saleForm() {
         propertyId: values.get("propertyId"),
         customerId: values.get("customerId"),
         advisorId: values.get("advisorId"),
+        customerSourceId: values.get("customerSourceId"),
+        propertySourceId: values.get("propertySourceId"),
         receivedAmount: Number(values.get("receivedAmount")),
         receivableAmount: Number(values.get("receivableAmount")),
         isCredit: values.has("isCredit"),
@@ -115,7 +117,7 @@ export function saleForm() {
       await api("/sales", { method: "POST", body });
     },
     [],
-    "Alınan ücret, ofise fiilen giren net komisyondur. Alınacak ücret tahsil edilene kadar dağıtıma girmez.",
+    "Dağıtım, alınan ve alınacak ücretin toplamı üzerinden hesaplanır.",
   );
   document.getElementById("record-form").addEventListener("input", (event) => {
     if (!["receivedAmount", "receivableAmount"].includes(event.target.name))
@@ -128,81 +130,44 @@ export function saleForm() {
     fields.totalAmount.value = ((received + receivable) / 100).toFixed(2);
   });
 }
-export { financeView } from "./accounting.js";
 export async function reportsView() {
   if (!manager()) return "<p>Broker yetkisi gereklidir.</p>";
-  const report = await api(
-    "/reports" +
-      (state.filters.reportMonth
-        ? "?month=" + encodeURIComponent(state.filters.reportMonth)
-        : ""),
-  );
-  return (
-    '<div class="page-heading"><h1>Özetler ve ayın elemanı</h1>' +
-    btn("Ayın elemanını seç", "new-award", "", "primary") +
-    '</div><label class="form-field">Değerlendirme ayı<input type="month" class="control" data-filter="reportMonth" value="' +
-    esc(report.month) +
-    '"></label>' +
-    table(
-      ["Dönem", "Kapanan işlem", "Şirket kasasına kalan"],
-      report.periods.map((p) => [p.name, p.count, currency(p.net)]),
-    ) +
-    "<h2>Danışman faaliyetleri</h2>" +
-    table(
-      [
-        "Danışman",
-        "Departman",
-        "Yeni portföy",
-        "Tamamlanan takip",
-        "Şirket kasasına katkı",
-      ],
-      report.ranking
-        .sort((a, b) => b.revenue - a.revenue)
-        .map((r) => [
-          r.name,
-          r.department,
-          r.properties,
-          r.followups,
-          currency(r.revenue),
-        ]),
-    ) +
-    "<h2>Ayın elemanları</h2>" +
-    table(
-      ["Kriter", "Danışman"],
-      report.awards.map((a) => [
-        { sales: "Satış", properties: "Portföy", followups: "Müşteri takibi" }[
-          a.criterion
-        ],
-        state.members.find((m) => m.userId === a.userId)?.fullName || "",
-      ]),
-    )
-  );
-}
-export function awardForm() {
-  formDialog(
-    "Ayın elemanını seç",
-    field(
-      "month",
-      "Ay",
-      state.filters.reportMonth || new Date().toISOString().slice(0, 7),
-      "month",
-      true,
-    ) +
-      select("criterion", "Değerlendirme kriteri", [
-        ["sales", "Şirket kasasına en yüksek katkı"],
-        ["properties", "Portföy ekleme"],
-        ["followups", "Müşteri takibi"],
-      ]) +
-      select(
-        "userId",
-        "Danışman",
-        state.members
-          .filter((m) => m.role === "agent")
-          .map((m) => [m.userId, m.fullName]),
-      ),
-    async (_, values) =>
-      api("/awards", { method: "POST", body: Object.fromEntries(values) }),
-  );
+  const { sales } = await api("/finance");
+  const recent = (items) => [...items].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10);
+  const formatDate = (value) => value ? new Date(value).toLocaleDateString("tr-TR") : "—";
+  const creator = (record) => record.createdByName ||
+    state.members.find(member => member.userId === record.createdById)?.fullName ||
+    "Kayıtlı değil";
+  const recordTable = (headers, rows, records, action) =>
+    '<div class="table-wrap"><table><thead><tr>' +
+    [...headers, "Detay"].map(header => "<th>" + esc(header) + "</th>").join("") +
+    "</tr></thead><tbody>" +
+    rows.map((row, index) => "<tr>" + row.map(cell => "<td>" + esc(cell) + "</td>").join("") +
+      "<td>" + btn("Detayları gör", action, records[index].id, "small") + "</td></tr>").join("") +
+    "</tbody></table></div>";
+  const properties = recent(state.properties);
+  const customers = recent(state.customers);
+  const section = (title, headers, rows, records, action) =>
+    '<section class="panel"><div class="panel-head"><h2>' + title + '</h2></div>' +
+    (rows.length ? (action ? recordTable(headers, rows, records, action) : table(headers, rows)) : '<p class="panel-body">Henüz kayıt yok.</p>') + '</section>';
+  const pending = sales.filter(s => !s.distributedAt);
+  const metrics = [
+    ["Toplam portföy", state.properties.length],
+    ["Toplam müşteri", state.customers.length],
+    ["Tamamlanan satış / kiralama", sales.length],
+    ["Toplam emlak komisyonu", currency(sales.reduce((sum,s) => sum + (s.totalAmount ?? s.gross ?? 0), 0))],
+    ["Dağıtılmayı bekleyen", currency(pending.reduce((sum,s) => sum + (s.distribution?.baseCents || 0), 0))],
+  ];
+  return '<div class="page-heading"><h1>Özetler</h1></div>' +
+    '<div class="accounting-metrics">' + metrics.map(([title,value]) =>
+      '<div class="accounting-metric"><span>' + esc(title) + '</span><strong>' + esc(value) + '</strong></div>'
+    ).join("") + '</div>' +
+    section("Yeni eklenen portföyler", ["Portföy", "Durum", "Fiyat", "Ekleyen", "Eklenme tarihi"],
+      properties.map(p => [p.title, label(p.status), money(p.price,p.currency), creator(p), formatDate(p.createdAt)]), properties, "property-detail") +
+    section("Yeni eklenen müşteriler", ["Müşteri", "Telefon", "Durum", "Ekleyen", "Eklenme tarihi"],
+      customers.map(c => [c.name, c.phone || "—", label(c.pipelineStatus || c.status), creator(c), formatDate(c.createdAt)]), customers, "customer-detail") +
+    section("Son satışlar ve kiralamalar", ["Portföy", "Müşteri", "Danışman", "Toplam komisyon", "Tarih"],
+      recent(sales).map(s => [s.propertyTitle, s.customerName, s.distribution?.advisor?.name || "—", currency(s.totalAmount ?? s.gross ?? 0), formatDate(s.createdAt)]));
 }
 
 export async function networkView() {
@@ -274,38 +239,5 @@ export function networkConnectForm() {
         method: "POST",
         body: Object.fromEntries(values),
       }),
-  );
-}
-
-export async function salesView() {
-  if (!manager()) return "<p>Broker yetkisi gereklidir.</p>";
-  const { sales } = await api("/finance");
-  return (
-    '<div class="page-heading"><h1>Satış bitirme</h1>' +
-    btn("Satış bitir", "new-sale", "", "primary") +
-    "</div>" +
-    table(
-      [
-        "Tarih",
-        "Portföy",
-        "Müşteriyi getiren",
-        "Satışı bitiren",
-        "Alınan ücret",
-        "Alınacak ücret",
-        "Toplam ücret",
-        "Kredili işlem",
-      ],
-      sales.map((s) => [
-        new Date(s.createdAt).toLocaleDateString("tr-TR"),
-        s.propertyTitle,
-        label(s.customerLeadSource),
-        state.members.find((m) => m.userId === s.advisorId)?.fullName ||
-          "Eski çalışan",
-        currency(s.receivedAmount),
-        currency(s.receivableAmount),
-        currency(s.totalAmount ?? s.gross),
-        s.isCredit === undefined ? "—" : s.isCredit ? "Evet" : "Hayır",
-      ]),
-    )
   );
 }

@@ -1,4 +1,6 @@
-import { financeView, reportsView, networkView, salesView } from "./office.js";
+import { reportsView, networkView } from "./office.js";
+import { salesView, financeView } from "./accounting.js";
+import { auditView } from "./broker.js";
 import {
   state,
   esc,
@@ -24,18 +26,16 @@ import {
   field,
 } from "./core.js";
 export const pages = {
+  audit: ["İşlem geçmişi", "Kayıt ve ödeme değişiklikleri.", "clock"],
+  inbox: ["Mesaj kutusu", "Size atanan görevler.", "users"],
   sales: ["Satış bitirme", "Tamamlanan satış ve kiralama işlemleri.", "home"],
-  network: ["Ortak ağ API", "Sunucular arası ortak ağ.", "network"],
   finance: [
     "Muhasebe",
-    "Şirket kasası, kesintiler ve departman dağılımları.",
+    "Aylık kazanç, tahsilatlar ve işlem geçmişi.",
     "building",
   ],
-  reports: [
-    "Özetler ve ayın elemanı",
-    "Dönemsel sonuçlar ve danışman faaliyetleri.",
-    "grid",
-  ],
+  network: ["Ortak ağ API", "Sunucular arası ortak ağ.", "network"],
+  reports: ["Özetler", "Portföy, müşteri ve satış özeti.", "grid"],
   dashboard: [
     "Genel bakış",
     "İşinizin bugünkü görünümü. Önceliklerinizi buradan yönetin.",
@@ -114,6 +114,12 @@ export function shell() {
     link("properties", state.properties.filter((p) => !p.isArchived).length) +
     link("customers", state.customers.length) +
     link("tasks", state.tasks.filter((t) => !t.isCompleted).length) +
+    link(
+      "inbox",
+      state.tasks.filter(
+        (t) => t.assignedToUserId === state.session.user.id && !t.readAt,
+      ).length,
+    ) +
     link("matching") +
     link("pool") +
     '<div class="nav-section">YÖNETİM</div>' +
@@ -122,6 +128,7 @@ export function shell() {
         link("sales") +
         link("finance") +
         link("reports") +
+        link("audit") +
         link("network")
       : "") +
     link("company") +
@@ -148,7 +155,9 @@ export function shell() {
     esc(s.user.fullName) +
     "</strong><small>" +
     esc(label(s.role)) +
-    '</small></span></button></div></header><main id="main" class="main" tabindex="-1"></main></div>'
+    "</small></span></button>" +
+    btn("Çıkış yap", "logout", "", "small", "logout") +
+    '</div></header><main id="main" class="main" tabindex="-1"></main></div>'
   );
 }
 export function heading(actions = "") {
@@ -235,7 +244,8 @@ export function propertyTable(list, compact = false, pool = false) {
           '<td><div class="actions">' +
           iconBtn("eye", "Portföyü incele", "property-detail", p.id) +
           (canEdit(p) && !compact
-            ? iconBtn("edit", "Portföyü düzenle", "edit-property", p.id)
+            ? iconBtn("edit", "Portföyü düzenle", "edit-property", p.id) +
+              btn("Sil", "delete-property", p.id, "small danger", "trash")
             : "") +
           "</div></td></tr>",
       )
@@ -382,13 +392,7 @@ export function dashboard() {
     propertyTable(props.slice(0, 5), true) +
     '<div class="table-footer"><span>' +
     props.length +
-    ' aktif portföy</span><span>Son eklenene göre</span></div></section><div class="quick-links"><button class="quick-link" data-action="new-property">' +
-    icon("home") +
-    'Portföy ekle</button><button class="quick-link" data-action="new-customer">' +
-    icon("users") +
-    'Müşteri ekle</button><button class="quick-link" data-action="new-task">' +
-    icon("calendar") +
-    'Görüşme planla</button></div></div><div class="stack"><section class="panel"><div class="panel-head"><div><h2>Takip edilecek işler</h2><p>Bugün ve yaklaşan görevler</p></div>' +
+    ' aktif portföy</span><span>Son eklenene göre</span></div></section></div><div class="stack"><section class="panel"><div class="panel-head"><div><h2>Takip edilecek işler</h2><p>Bugün ve yaklaşan görevler</p></div>' +
     badge(pending.length + " açık", "blue") +
     "</div>" +
     (schedule.length
@@ -396,7 +400,7 @@ export function dashboard() {
       : empty(
           "Ajandanız açık",
           "Yeni bir görüşme planlayarak başlayın.",
-          btn("Görüşme planla", "new-task", "", "small"),
+          btn("Görüşme planla", "navigate", "tasks", "small"),
         )) +
     '</section><section class="panel"><div class="panel-head"><div><h2>Müşteri süreci</h2><p>Görüşmeleriniz hangi aşamada?</p></div>' +
     icon("trend") +
@@ -463,9 +467,30 @@ const selectFilter = (name, list, all) =>
   '">' +
   options(list, state.filters[name] || "", all) +
   "</select>";
-export function properties() {
+const pagination = (result) =>
+  '<div class="actions">' +
+  (result.page > 1 ? btn("Önceki", "list-page", result.page - 1) : "") +
+  "<span>" +
+  result.page +
+  " / " +
+  Math.max(1, Math.ceil(result.total / 30)) +
+  "</span>" +
+  (result.page * 30 < result.total
+    ? btn("Sonraki", "list-page", result.page + 1)
+    : "") +
+  "</div>";
+async function records(kind) {
+  const params = new URLSearchParams(
+    Object.entries(state.filters).filter(
+      ([, value]) => value !== "" && value !== false && value != null,
+    ),
+  );
+  return api("/records/" + kind + "?" + params);
+}
+export async function properties() {
   const f = state.filters;
-  const list = filterProperties(state.properties);
+  const result = await records("properties");
+  const list = result.items;
   return (
     heading(btn("Portföy ekle", "new-property", "", "primary", "plus")) +
     '<div class="toolbar">' +
@@ -530,10 +555,11 @@ export function properties() {
     '</div></details><section class="panel">' +
     propertyTable(list) +
     '<div class="table-footer"><span>' +
-    list.length +
+    result.total +
     " kayıt gösteriliyor</span>" +
     btn("Filtreleri temizle", "clear-filters", "", "subtle small") +
     "</div></section>" +
+    pagination(result) +
     footer()
   );
 }
@@ -582,7 +608,8 @@ export function customerTable(list, pool = false) {
           '</td><td><div class="actions">' +
           iconBtn("match", "Uygun portföyleri bul", "match-customer", c.id) +
           (canEdit(c)
-            ? iconBtn("edit", "Müşteriyi düzenle", "edit-customer", c.id)
+            ? iconBtn("edit", "Müşteriyi düzenle", "edit-customer", c.id) +
+              btn("Sil", "delete-customer", c.id, "small danger", "trash")
             : "") +
           "</div></td></tr>",
       )
@@ -590,24 +617,10 @@ export function customerTable(list, pool = false) {
     "</tbody></table></div>"
   );
 }
-export function customers() {
+export async function customers() {
   const f = state.filters;
-  const list = state.customers.filter(
-    (c) =>
-      (!f.q ||
-        norm(
-          [
-            c.name,
-            c.phone,
-            c.email,
-            ...(c.preferredDistricts || []),
-            ...(c.preferredNeighborhoods || []),
-          ].join(" "),
-        ).includes(norm(f.q))) &&
-      (!f.status || (c.pipelineStatus || c.status) === f.status) &&
-      (!f.customerClass || c.customerClass === f.customerClass) &&
-      (!f.mine || c.createdById === state.session.user.id),
-  );
+  const result = await records("customers");
+  const list = result.items;
   return (
     heading(btn("Müşteri ekle", "new-customer", "", "primary", "plus")) +
     '<div class="tabs" role="group" aria-label="Müşteri aşamaları">' +
@@ -660,11 +673,76 @@ export function customers() {
     '</div><section class="panel">' +
     customerTable(list) +
     '<div class="table-footer"><span>' +
-    list.length +
+    result.total +
     " müşteri gösteriliyor</span>" +
     btn("Filtreleri temizle", "clear-filters", "", "subtle small") +
     "</div></section>" +
+    pagination(result) +
     footer()
+  );
+}
+export async function inbox() {
+  const tasks = (await api("/followups?onlyMine=true"))
+    .filter((task) => task.assignedToUserId === state.session.user.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const query = norm(state.filters.inboxSearch || "");
+  const status = state.filters.inboxStatus || "pending";
+  const filtered = tasks.filter(
+    (task) =>
+      (status === "all" ||
+        (status === "done" ? task.isCompleted : !task.isCompleted)) &&
+      norm(task.title + " " + task.notes).includes(query),
+  );
+  return (
+    heading() +
+    '<div class="form-grid"><label class="form-field">Görev ara<input class="control" type="search" data-filter="inboxSearch" value="' +
+    esc(state.filters.inboxSearch || "") +
+    '"></label>' +
+    '<label class="form-field">Durum<select class="control" data-filter="inboxStatus">' +
+    options(
+      [
+        ["pending", "Bekleyen"],
+        ["done", "Tamamlanan"],
+        ["all", "Tümü"],
+      ],
+      status,
+    ) +
+    '</select></label></div><section class="panel">' +
+    (filtered.length
+      ? filtered
+          .map(
+            (task) =>
+              '<div class="panel-body"><strong>' +
+              esc(task.title) +
+              "</strong>" +
+              '<p style="white-space:pre-wrap">' +
+              esc(task.notes || "") +
+              "</p>" +
+              '<p class="muted">' +
+              esc(date(task.createdAt)) +
+              "</p>" +
+              "<p>Görevi veren: " +
+              esc(
+                state.members.find((m) => m.userId === task.createdById)
+                  ?.fullName || "Kayıtlı değil",
+              ) +
+              " · " +
+              (task.readAt ? "Okundu" : "Yeni görev") +
+              "</p>" +
+              (!task.readAt
+                ? btn("Okundu", "read-task", task.id, "small")
+                : "") +
+              btn(
+                task.isCompleted ? "Yeniden aç" : "Tamamlandı",
+                "complete-task",
+                task.id,
+                "small",
+              ) +
+              "</div>",
+          )
+          .join("")
+      : '<p class="panel-body">Bu görünümde görev yok.</p>') +
+    "</section>"
   );
 }
 export function tasks() {
@@ -751,14 +829,22 @@ export async function matching() {
     mode === "customer"
       ? state.customers
       : state.properties.filter((p) => !p.isArchived);
-  const chosen = state.matchId;
+  let chosen = state.matchId;
   let result = null;
-  if (chosen)
-    result = await api(
-      "/matching?" +
-        (mode === "customer" ? "customerId=" : "propertyId=") +
-        encodeURIComponent(chosen),
-    );
+  if (chosen) {
+    try {
+      result = await api(
+        "/matching?" +
+          (mode === "customer" ? "customerId=" : "propertyId=") +
+          encodeURIComponent(chosen),
+      );
+    } catch (error) {
+      if (error.status !== 404) throw error;
+      if (state.matchMode === mode && state.matchId === chosen)
+        state.matchId = null;
+      chosen = null;
+    }
+  }
   return (
     heading(
       '<label class="check-label"><input type="checkbox" data-filter="allMatches"' +
@@ -805,13 +891,20 @@ export async function matching() {
           .join("")
       : empty(
           "Önce bir kayıt ekleyin",
-          "Eşleştirme için bir müşteri veya portföy gerekli.",
+          mode === "customer"
+            ? "Eşleştirmeye başlamak için bir müşteri ekleyin."
+            : "Eşleştirmeye başlamak için bir portföy ekleyin.",
+          mode === "customer"
+            ? btn("Müşteri ekle", "new-customer", "", "small", "plus")
+            : btn("Portföy ekle", "new-property", "", "small", "plus"),
         )) +
     '</div></section><section class="panel">' +
     (!result
       ? empty(
           "Bir kayıt seçerek başlayın",
-          "Soldan bir müşteri seçin, uygun portföyleri ve eşleşme nedenlerini birlikte görün.",
+          mode === "customer"
+            ? "Uygun portföyleri görmek için bir müşteri seçin."
+            : "Uygun müşterileri görmek için bir portföy seçin.",
         )
       : '<div class="panel-head"><div><h2>' +
         esc(result.target.data.name || result.target.data.title) +
@@ -963,14 +1056,17 @@ export function team() {
                 memberOptions,
                 record.assignedToUserId || record.createdById,
               ) +
-              "</select></td><td>" +
+              '</select></td><td><div class="actions">' +
               btn(
                 "Aç",
                 kind === "property" ? "property-detail" : "customer-detail",
                 record.id,
                 "small",
               ) +
-              "</td></tr>",
+              (canEdit(record)
+                ? btn("Sil", "delete-" + kind, record.id, "small danger", "trash")
+                : "") +
+              "</div></td></tr>",
           )
           .join("") +
         "</tbody></table></div>"
@@ -1017,7 +1113,12 @@ export function team() {
         "</h2><p>" +
         esc(selected.email || "") +
         "</p></div>" +
+        '<div class="actions">' +
         badge(label(selected.role), "blue") +
+        (selected.role === "agent"
+          ? btn("Sil", "delete-advisor", selected.id, "small danger", "trash")
+          : "") +
+        "</div>" +
         '</div><div class="panel-body"><label class="form-field">Departman<select class="control" data-member-dept="' +
         esc(selected.id) +
         '">' +
@@ -1043,8 +1144,15 @@ export function team() {
               esc(d.propertiesCount) +
               " portföy · " +
               esc(d.customersCount) +
-              " müşteri</span>" +
+              " müşteri" +
+              (d.permanent
+                ? " · Genel danışman: " + esc(d.leader?.fullName || "Atanmamış")
+                : "") +
+              "</span>" +
               btn("Düzenle", "edit-department", d.id, "small") +
+              (d.permanent
+                ? ""
+                : btn("Sil", "delete-department", d.id, "small danger", "trash")) +
               "</div>",
           )
           .join("")
@@ -1176,13 +1284,15 @@ export async function company() {
                           "small",
                           "edit",
                         ) +
-                        btn(
-                          "Sil",
-                          "delete-department",
-                          d.id,
-                          "small danger",
-                          "trash",
-                        ) +
+                        (d.permanent
+                          ? ""
+                          : btn(
+                              "Sil",
+                              "delete-department",
+                              d.id,
+                              "small danger",
+                              "trash",
+                            )) +
                         "</div>"
                       : "") +
                     "</div></section>",
@@ -1193,7 +1303,9 @@ export async function company() {
                 "Ekibinizi bölge veya uzmanlık alanına göre organize edebilirsiniz.",
               )) +
           "</div>"
-        : '<section class="panel"><div class="table-wrap"><table><thead><tr><th>Ekip üyesi</th><th>Rol</th><th>Departman</th><th>Katılım</th></tr></thead><tbody>' +
+        : '<section class="panel"><div class="table-wrap"><table><thead><tr><th>Ekip üyesi</th><th>Rol</th><th>Departman</th><th>Katılım</th>' +
+          (manager() ? "<th>İşlem</th>" : "") +
+          "</tr></thead><tbody>" +
           state.members
             .map(
               (m) =>
@@ -1221,7 +1333,15 @@ export async function company() {
                   : esc(m.departmentName || "Atanmamış")) +
                 "</td><td>" +
                 date(m.joinedAt) +
-                "</td></tr>",
+                "</td>" +
+                (manager()
+                  ? "<td>" +
+                    (m.role === "agent"
+                      ? btn("Sil", "delete-advisor", m.id, "small danger", "trash")
+                      : "") +
+                    "</td>"
+                  : "") +
+                "</tr>",
             )
             .join("") +
           "</tbody></table></div></section>" +
@@ -1390,9 +1510,11 @@ export function search() {
   );
 }
 export const renderers = {
+  audit: auditView,
+  inbox,
   sales: salesView,
-  network: networkView,
   finance: financeView,
+  network: networkView,
   reports: reportsView,
   dashboard,
   properties,

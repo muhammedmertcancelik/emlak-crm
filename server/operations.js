@@ -39,6 +39,8 @@ function requireBroker(auth) {
   if (!broker(auth)) fail("Bu işlem broker yetkisi gerektirir.", 403);
 }
 async function handle(req, res, auth, db, pathname) {
+  if (await require("./broker").handle(req, res, auth, db, pathname))
+    return true;
   if (await accounting.handle(req, res, auth, db, pathname)) return true;
   if (await require("./network").handle(req, res, auth, db, pathname))
     return true;
@@ -280,6 +282,40 @@ async function handle(req, res, auth, db, pathname) {
     });
     return send({ success: true }, 201);
   }
+  const staffMatch = pathname.match(/^\/api\/staff\/([^/]+)$/);
+  if (staffMatch && req.method === "DELETE") {
+    requireBroker(auth);
+    await withDBLock((data, save) => {
+      const activeMembers = members(data, companyId);
+      if (
+        !activeMembers.some(
+          (m) => m.userId === auth.user.id && broker({ membership: m }),
+        )
+      )
+        fail("Bu işlem broker yetkisi gerektirir.", 403);
+      const advisor = activeMembers.find(
+        (m) => m.id === staffMatch[1] && m.role === "agent",
+      );
+      if (!advisor) fail("Danışman bulunamadı.", 404);
+      advisor.status = "inactive";
+      advisor.departmentId = null;
+      for (const dept of data.departments || []) {
+        if (dept.companyId === companyId && dept.leaderUserId === advisor.userId)
+          dept.leaderUserId = null;
+      }
+      for (const collection of ["properties", "customers", "followUps"]) {
+        for (const record of data[collection] || []) {
+          if (
+            record.companyId === companyId &&
+            (record.assignedToUserId || record.createdById) === advisor.userId
+          )
+            record.assignedToUserId = auth.user.id;
+        }
+      }
+      save(data);
+    });
+    return send({ success: true });
+  }
   if (pathname === "/api/sales" && req.method === "POST") {
     requireBroker(auth);
     const body = await parseBody(req);
@@ -291,6 +327,8 @@ async function handle(req, res, auth, db, pathname) {
         propertyId: "string",
         customerId: "string",
         advisorId: "string",
+        customerSourceId: "string",
+        propertySourceId: "string",
         gross: "number",
         deductions: "number",
         distributable: "number",
@@ -347,10 +385,29 @@ async function handle(req, res, auth, db, pathname) {
       );
       if (!prop || !customer || !member)
         fail("Satış kayıtları aynı ofise ait olmalı.");
+      const hasSources =
+        body.customerSourceId !== undefined ||
+        body.propertySourceId !== undefined;
+      if (hasSources) {
+        const advisorIds = members(data, companyId)
+          .filter((m) => m.role === "agent")
+          .map((m) => m.userId);
+        if (
+          !paymentEntry ||
+          member.role !== "agent" ||
+          ![body.customerSourceId, body.propertySourceId].every(
+            (id) => id === "emlak" || advisorIds.includes(id),
+          )
+        )
+          fail("Satışı bitiren danışmanı ve her iki kaynağı bu ofisten seçin.");
+      }
       if (
         ["satildi", "kiralandi"].includes(prop.status) ||
         data.sales.some(
-          (s) => s.companyId === companyId && s.propertyId === prop.id,
+          (s) =>
+            s.companyId === companyId &&
+            s.propertyId === prop.id &&
+            !s.cancelledAt,
         )
       )
         fail("Bu portföyün satışı zaten kapatıldı.", 409);
@@ -359,7 +416,7 @@ async function handle(req, res, auth, db, pathname) {
       );
       const targets = [
         { id: "company", name: "Emlak şirketi" },
-        ...departments,
+        ...departments.filter((d) => !d.permanent),
       ];
       const shares = (body.shares || []).map((value) => {
         const split = value.lastIndexOf("=");
@@ -402,12 +459,22 @@ async function handle(req, res, auth, db, pathname) {
         companyId,
         propertyId: prop.id,
         propertyTitle: prop.title,
+        previousPropertyStatus: prop.status,
+        previousCustomerStatus: customer.status,
+        previousCustomerPipelineStatus: customer.pipelineStatus,
         transactionType: prop.status === "kiralik" ? "kiralik" : "satilik",
         propertyType: prop.type,
         portfolioSource: prop.portfolioSource || null,
         customerId: customer.id,
         customerName: customer.name,
         customerLeadSource: normalizeLeadSource(customer.leadSource),
+        ...(hasSources
+          ? {
+              distributionRules: accounting.rulesFor(data, companyId),
+              customerSourceId: body.customerSourceId,
+              propertySourceId: body.propertySourceId,
+            }
+          : {}),
         advisorId: member.userId,
         departmentId: member.departmentId,
         departmentName:
@@ -424,12 +491,14 @@ async function handle(req, res, auth, db, pathname) {
         deductions,
         net: gross - deductions,
         distributable,
-        companyNet: paymentEntry
-          ? receivedAmount
-          : gross -
-            deductions -
-            distributable +
-            (allocations.find((a) => a.id === "company")?.cents || 0),
+        companyNet: hasSources
+          ? 0
+          : paymentEntry
+            ? receivedAmount
+            : gross -
+              deductions -
+              distributable +
+              (allocations.find((a) => a.id === "company")?.cents || 0),
         allocations,
         createdAt: new Date().toISOString(),
         createdById: auth.user.id,
@@ -449,7 +518,7 @@ async function handle(req, res, auth, db, pathname) {
     return send({
       accounting: summary,
       sales: (db.sales || [])
-        .filter((s) => s.companyId === companyId)
+        .filter((s) => s.companyId === companyId && !s.cancelledAt)
         .map((sale) => {
           const customer = (db.customers || []).find(
             (c) => c.id === sale.customerId && c.companyId === companyId,
@@ -483,7 +552,9 @@ async function handle(req, res, auth, db, pathname) {
         month: "2-digit",
         day: "2-digit",
       }).format(new Date(date));
-    const sales = (db.sales || []).filter((s) => s.companyId === companyId);
+    const sales = (db.sales || []).filter(
+      (s) => s.companyId === companyId && !s.cancelledAt,
+    );
     const now = new Date();
     const today = dateKey(now);
     const start = new Date(today + "T00:00:00+03:00");
@@ -544,70 +615,7 @@ async function handle(req, res, auth, db, pathname) {
       periods,
       ranking,
       month,
-      awards: (db.awards || []).filter(
-        (a) => a.companyId === companyId && a.month === month,
-      ),
     });
-  }
-  if (pathname === "/api/awards" && req.method === "POST") {
-    requireBroker(auth);
-    const body = await parseBody(req);
-    validateFields(
-      body,
-      { month: "string", userId: "string", criterion: "string" },
-      ["month", "userId", "criterion"],
-    );
-    if (
-      !/^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ||
-      !["sales", "properties", "followups"].includes(body.criterion)
-    )
-      fail("Ay ve kriter seçin.");
-    await withDBLock((data, save) => {
-      if (
-        !members(data, companyId).some(
-          (m) => m.userId === body.userId && m.role === "agent",
-        )
-      )
-        fail("Danışman seçin.");
-      if (body.criterion === "sales") {
-        const totals = new Map();
-        for (const sale of (data.sales || []).filter(
-          (s) =>
-            s.companyId === companyId &&
-            new Intl.DateTimeFormat("sv-SE", {
-              timeZone: "Europe/Istanbul",
-              year: "numeric",
-              month: "2-digit",
-            }).format(new Date(s.createdAt)) === body.month,
-        ))
-          totals.set(
-            sale.advisorId,
-            (totals.get(sale.advisorId) || 0) + sale.companyNet,
-          );
-        const highest = Math.max(0, ...totals.values());
-        if (highest <= 0 || totals.get(body.userId) !== highest)
-          fail(
-            "Satış kriterinde şirket kasasına en yüksek katkıyı sağlayan danışmanı seçin.",
-          );
-      }
-      data.awards ||= [];
-      data.awards = data.awards.filter(
-        (a) =>
-          !(
-            a.companyId === companyId &&
-            a.month === body.month &&
-            a.criterion === body.criterion
-          ),
-      );
-      data.awards.push({
-        ...body,
-        companyId,
-        createdById: auth.user.id,
-        createdAt: new Date().toISOString(),
-      });
-      save(data);
-    });
-    return send({ success: true });
   }
 
   if (

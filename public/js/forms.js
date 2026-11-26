@@ -41,6 +41,46 @@ export function showDialog(title, body, description = "", footer = "") {
     body +
     (footer ? '<div class="dialog-footer">' + footer + "</div>" : "");
   if (!d.open) d.showModal();
+  for (const select of d.querySelectorAll("select")) {
+    const searchable = [
+      "relatedPropertyId",
+      "relatedCustomerId",
+      "propertyId",
+      "customerId",
+      "advisorId",
+      "assignedToUserId",
+      "customerSourceId",
+      "propertySourceId",
+      "leaderUserId",
+    ];
+    if (!searchable.includes(select.name)) continue;
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "control";
+    search.placeholder = "Listede ara…";
+    search.setAttribute("aria-label", "Seçeneklerde ara");
+    select.before(search);
+    const original = [...select.options];
+    const normalize = (value) =>
+      value
+        .toLocaleLowerCase("tr-TR")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/ı/g, "i");
+    search.addEventListener("input", () => {
+      const selected = select.value;
+      const query = normalize(search.value);
+      select.replaceChildren(
+        ...original.filter(
+          (option) =>
+            option.value === "" ||
+            option.value === selected ||
+            normalize(option.textContent).includes(query),
+        ),
+      );
+      select.value = selected;
+    });
+  }
 }
 const kinds = {
   property: ["Portföy", "/properties"],
@@ -614,50 +654,28 @@ export async function openForm(kind, id = "", seed = {}) {
       ...seed,
       ...data,
     };
-    if (data.dueDate)
-      data.dueDate = new Intl.DateTimeFormat("sv-SE", {
-        timeZone: "Europe/Istanbul",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-        .format(new Date(data.dueDate))
-        .replace(" ", "T");
     specs = [
-      ["title", "Görev başlığı", "text", true],
-      [
-        "type",
-        "Görev türü",
-        ["arama", "ziyaret", "toplanti", "sozlesme", "yapilacak"],
-      ],
-      ["dueDate", "Tarih ve saat (İstanbul)", "datetime-local", true],
       [
         "assignedToUserId",
-        "Sorumlu",
+        "İlgili danışman",
         state.members
           .filter((m) => manager() || m.userId === state.session.user.id)
           .map((m) => [m.userId, m.fullName]),
+        true,
       ],
-      [
-        "relatedCustomerId",
-        "İlgili müşteri",
-        [["", "Müşteri seçin"], ...state.customers.map((c) => [c.id, c.name])],
-      ],
-      [
-        "relatedPropertyId",
-        "İlgili portföy",
-        [
-          ["", "Portföy seçin"],
-          ...state.properties
-            .filter((p) => !p.isArchived)
-            .map((p) => [p.id, p.title]),
-        ],
-      ],
-      ["notes", "Görev notları", "textarea"],
+      ["notes", "Görev notu", "textarea", true],
     ];
     html = group(specs, data);
+    if (!id && kind === "task") {
+      specs = [["notes", "Görev notu", "textarea", true]];
+      html = '<details class="form-field choice-picker"><summary><span>İlgili danışmanlar</span><span class="choice-count">' +
+        (state.members.some(m => m.userId === data.assignedToUserId) ? "1 seçildi" : "Seçilmedi") +
+        '</span></summary><fieldset class="choice-options" aria-label="İlgili danışmanlar">' +
+        state.members.filter(m => manager() || m.userId === state.session.user.id)
+          .map(m => '<label class="check-label"><input type="checkbox" name="assignedUserIds" value="' +
+            esc(m.userId) + '"' + (m.userId === data.assignedToUserId ? " checked" : "") + '>' + esc(m.fullName) + '</label>').join("") +
+        '</fieldset></details>' + group(specs, data);
+    }
   }
   if (kind === "company") {
     data = state.session.company;
@@ -673,7 +691,7 @@ export async function openForm(kind, id = "", seed = {}) {
   if (kind === "department") {
     data = { color: "#2864e8", ...data };
     specs = [
-      ["name", "Departman adı", "text", true],
+      ...(data.permanent ? [] : [["name", "Departman adı", "text", true]]),
       [
         "leaderUserId",
         "Departman sorumlusu",
@@ -730,15 +748,6 @@ export async function openForm(kind, id = "", seed = {}) {
       ["statuses", "İşlem türleri", "checks:satilik|kiralik"],
       ["rooms", "Oda seçenekleri", "checks:1+0|1+1|2+1|3+1|4+1|5+1|6+1|7+1"],
     ];
-    const locations = await api(
-      "/locations?city=" +
-        encodeURIComponent(state.session.company.city || "İstanbul"),
-    );
-    criteria.push([
-      "districts",
-      "Çalışma bölgeleri",
-      "checks:" + locations.districts.join("|"),
-    ]);
     html += section(
       "Departmanın çalışma kriterleri",
       criteria,
@@ -798,20 +807,19 @@ export async function openForm(kind, id = "", seed = {}) {
           types: formData.types,
           statuses: formData.statuses,
           rooms: formData.rooms,
-          districts: formData.districts,
         };
         delete formData.types;
         delete formData.statuses;
         delete formData.rooms;
-        delete formData.districts;
       }
       if (kind === "customer") formData.maxBudget = formData.totalBudget;
       if (kind === "task") {
-        formData.dueDate = new Date(
-          formData.dueDate + ":00+03:00",
-        ).toISOString();
-        formData.relatedPropertyId = formData.relatedPropertyId || null;
-        formData.relatedCustomerId = formData.relatedCustomerId || null;
+        if (!id) {
+          formData.assignedUserIds = [...document.querySelectorAll('#record-form [name="assignedUserIds"]:checked')].map(input => input.value);
+          if (!formData.assignedUserIds.length) throw new Error("En az bir danışman seçin.");
+        }
+        formData.title = formData.notes.trim().slice(0, 120);
+        formData.type = data.type || "yapilacak";
       }
       if (kind === "department")
         formData.assignedUserIds = [

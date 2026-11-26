@@ -103,6 +103,23 @@ function pass(name) {
   );
   assert.equal(localStorage.getItem("emlak_crm_token"), null);
   pass("Giriş ve HttpOnly oturum ile genel bakış");
+  for (const [action, fieldName] of [
+    ["new-property", "title"],
+    ["new-customer", "name"],
+    ["new-task", "notes"],
+  ]) {
+    click("quick-add");
+    await until(() => document.querySelector('#dialog [data-action="' + action + '"]'), "quick action");
+    click(action);
+    await until(() => document.querySelector('#record-form [name="' + fieldName + '"]'), "quick form");
+    click("close-dialog");
+  }
+  pass("Yeni kayıt menüsünden portföy, müşteri ve görev formları");
+  location.hash = "customers";
+  await until(
+    () => document.querySelector('[data-action="new-customer"]'),
+    "customers route",
+  );
   click("new-customer");
   await until(() => document.getElementById("field-name"), "customer form");
   assert.deepEqual(
@@ -241,6 +258,10 @@ function pass(name) {
   );
   assert.equal(document.querySelector('img[src="x"]'), null);
   pass("Portföy formu ve zararlı metnin güvenli gösterimi");
+  await until(
+    () => document.querySelector('[data-action="property-detail"]'),
+    "property list rendered",
+  );
   click("property-detail", state.properties[0].id);
   await until(() => document.querySelector(".detail-price"), "property detail");
   click("edit-property", state.properties[0].id);
@@ -260,36 +281,29 @@ function pass(name) {
     "task list",
   );
   click("new-task");
-  await until(() => document.getElementById("field-dueDate"), "task form");
-  input("title", "Selin Hanım ile görüşme");
-  input("dueDate", "2026-12-01T14:30");
-  input("relatedCustomerId", state.customers[0].id);
-  input("relatedPropertyId", state.properties[0].id);
+  await until(() => document.querySelector('[name="notes"]'), "task form");
+  input("notes", "Customer follow-up");
   submit("record-form");
   await until(
     () => state.tasks.length === 1 && !document.getElementById("dialog").open,
     "task saved",
   );
-  assert.equal(state.tasks[0].dueDate, "2026-12-01T11:30:00.000Z");
-  pass("İstanbul saatine göre ilişkili görev oluşturma");
-  location.hash = "tasks";
-  await until(() => document.querySelector(".week-strip"), "task route");
+  assert.equal(state.tasks[0].dueDate, null);
   click("edit-task", state.tasks[0].id);
   await until(
     () =>
       document.getElementById("dialog").open &&
-      document.getElementById("field-dueDate"),
+      document.querySelector('[name="notes"]'),
     "task edit",
   );
-  assert.equal(input("dueDate", "2026-12-02T16:00").value, "2026-12-02T16:00");
+  input("notes", "Updated follow-up");
   submit("record-form");
   await until(
     () =>
-      state.tasks[0].dueDate === "2026-12-02T13:00:00.000Z" &&
+      state.tasks[0].notes === "Updated follow-up" &&
       !document.getElementById("dialog").open,
-    "task rescheduled",
+    "task edited",
   );
-  pass("Görev düzenleme ve randevu tarihini değiştirme");
   click("complete-task", state.tasks[0].id);
   await until(() => state.tasks[0].isCompleted, "completed");
   pass("Ajanda gezinmesi ve görev tamamlama");
@@ -312,6 +326,23 @@ function pass(name) {
     /İl uyuşmuyor/,
   );
   pass("Gerçek API ile eşleştirme ve nedenler");
+  const customersBeforeReset = state.customers;
+  state.customers = [];
+  state.matchId = "silinmis-musteri";
+  const currentMatchesControl = document.querySelector(
+    '[data-filter="allMatches"]',
+  );
+  currentMatchesControl.checked = false;
+  currentMatchesControl.dispatchEvent(
+    new dom.window.Event("change", { bubbles: true }),
+  );
+  await until(
+    () =>
+      state.matchId === null &&
+      document.querySelector('.selector-list [data-action="new-customer"]'),
+    "matching empty state after stale selection",
+  );
+  state.customers = customersBeforeReset;
   location.hash = "company";
   await until(
     () => document.querySelector('[data-action="company-tab"]'),
@@ -324,11 +355,12 @@ function pass(name) {
   );
   click("new-department");
   await until(() => document.getElementById("field-leaderUserId"), "dept form");
+  assert.equal(document.querySelector('#record-form [name="districts"]'), null);
   input("name", "Konut Ekibi");
   submit("record-form");
   await until(
     () =>
-      state.departments.length === 1 && !document.getElementById("dialog").open,
+      state.departments.length === 2 && !document.getElementById("dialog").open,
     "dept saved",
   );
   await until(
@@ -447,6 +479,7 @@ function pass(name) {
     document.querySelector('[data-member-dept="' + advisor.id + '"]').value,
     state.departments[0].id,
   );
+  assert.ok(document.querySelector(`[data-action="delete-advisor"][data-id="${advisor.id}"]`));
   click("team-records", "all");
   await until(
     () => document.querySelector('[data-record-assign="property"]'),
@@ -479,7 +512,27 @@ function pass(name) {
     () => document.querySelectorAll("[data-record-assign]").length === 2,
     "advisor records",
   );
+  for (const action of ["delete-department", "delete-property", "delete-customer"])
+    assert.ok(document.querySelector(`[data-action="${action}"]`));
   pass("Departmanlar ve ekip ekranında portföy ve müşteri ataması");
+  const { api } = await import(
+    pathToFileURL(path.join(__dirname, "../public/js/core.js"))
+  );
+  for (const [role, fullName] of [
+    ["agent", "Diğer Danışman"],
+    ["secretary", "Test Sekreter"],
+  ]) {
+    await api("/staff", {
+      method: "POST",
+      body: {
+        role,
+        fullName,
+        username: "ui_" + role,
+        password: "UI-danisman-2026!",
+        departmentId: state.departments[0].id,
+      },
+    });
+  }
   location.hash = "sales";
   await until(
     () => document.querySelector('[data-action="new-sale"]'),
@@ -495,6 +548,8 @@ function pass(name) {
     new dom.window.Event("change", { bubbles: true }),
   );
   input("advisorId", advisor.userId);
+  input("customerSourceId", "emlak");
+  input("propertySourceId", "emlak");
   input("receivedAmount", "70000").dispatchEvent(
     new dom.window.Event("input", { bubbles: true }),
   );
@@ -519,69 +574,14 @@ function pass(name) {
       state.properties[0].status === "satildi",
     "sale saved",
   );
-  location.hash = "finance";
   await until(
     () =>
-      document.querySelector("main h1")?.textContent === "Muhasebe" &&
-      document.querySelector("main")?.textContent.includes("₺70.000"),
+      document.querySelector("main h1")?.textContent === "Satış bitirme" &&
+      document.querySelector("main")?.textContent.includes("100.000"),
     "finance result",
   );
   pass("Tek satış formunda tahsilat, otomatik toplam ve kredili işlem");
-  const financeTable = [...document.querySelectorAll("main table")].find(
-    (table) =>
-      table.querySelector("thead").textContent.includes("Müşteriyi getiren"),
-  );
-  assert.ok(financeTable);
-  assert.match(financeTable.querySelector("tbody").textContent, /Emlak/);
-  assert.match(financeTable.querySelector("tbody").textContent, /₺30.000/);
-  assert.match(financeTable.querySelector("tbody").textContent, /₺100.000/);
-  assert.match(financeTable.querySelector("tbody").textContent, /Evet/);
-  assert.equal(document.querySelector('main [data-action="new-sale"]'), null);
-  click(
-    "commission-detail",
-    document.querySelector('[data-action="commission-detail"]').dataset.id,
-  );
-  await until(
-    () => document.querySelector('[name="departmentKey"]'),
-    "distribution form",
-  );
-  input("departmentKey", "rental").dispatchEvent(
-    new dom.window.Event("change", { bubbles: true }),
-  );
-  await until(
-    () =>
-      document
-        .getElementById("distribution-preview")
-        ?.textContent.includes("Dağılım toplamı: %90"),
-    "company source distribution",
-  );
-  assert.match(
-    document.getElementById("distribution-preview").textContent,
-    /Dağıtılmamış: %10/,
-  );
-  assert.equal(
-    document.querySelector('#record-form [type="submit"]').textContent,
-    "Taslağı kaydet",
-  );
-  submit("record-form");
-  await until(
-    () => !document.getElementById("dialog").open,
-    "distribution draft saved",
-  );
-  for (const kind of ["property", "customer"]) {
-    const record =
-      kind === "property" ? state.properties[0] : state.customers[0];
-    await openForm(kind, record.id);
-    input(
-      kind === "property" ? "portfolioSource" : "leadSource",
-      advisor.fullName,
-    );
-    submit("record-form");
-    await until(
-      () => !document.getElementById("dialog").open,
-      "contributor saved",
-    );
-  }
+  assert.ok(document.querySelector('main [data-action="new-sale"]'));
   click(
     "commission-detail",
     document.querySelector('[data-action="commission-detail"]').dataset.id,
@@ -591,11 +591,11 @@ function pass(name) {
       document
         .getElementById("distribution-preview")
         ?.textContent.includes("Dağılım toplamı: %100"),
-    "advisor source distribution",
+    "company source distribution",
   );
   assert.match(
     document.getElementById("distribution-preview").textContent,
-    /%45/,
+    /%35/,
   );
   assert.equal(
     document.querySelector('#record-form [type="submit"]').textContent,
@@ -605,18 +605,87 @@ function pass(name) {
   await until(
     () =>
       !document.getElementById("dialog").open &&
-      document.querySelector("main")?.textContent.includes("31.500,00"),
+      document.querySelector("main")?.textContent.includes("35.000,00"),
     "beneficiary total",
   );
   pass(
-    "Muhasebede %90 taslak, %100 kesinleştirme ve aynı danışmana %45 hak ediş",
+    "Satış bitirmede iki Emlak kaynağıyla toplam komisyon üzerinden %35 hak ediş",
   );
+  location.hash = "finance";
+  await until(
+    () => document.querySelector('[data-action="receipt"]'),
+    "receivable action",
+  );
+  click(
+    "receipt",
+    document.querySelector('[data-action="receipt"]').dataset.id,
+  );
+  await until(() => document.querySelector('[name="amount"]'), "receipt form");
+  input("amount", "10000");
+  submit("record-form");
+  await until(
+    () =>
+      !document.getElementById("dialog").open &&
+      document.querySelector("main")?.textContent.includes("20.000"),
+    "partial receipt saved",
+  );
+  click("new-expense");
+  await until(
+    () => document.querySelector('[name="category"]'),
+    "expense form",
+  );
+  input("category", "Kira");
+  input("amount", "1500");
+  submit("record-form");
+  await until(
+    () =>
+      !document.getElementById("dialog").open &&
+      document.querySelector('[data-action="void-expense"]'),
+    "expense saved",
+  );
+  click(
+    "void-expense",
+    document.querySelector('[data-action="void-expense"]').dataset.id,
+  );
+  await until(
+    () => document.querySelector('#record-form [type="submit"]'),
+    "void expense form",
+  );
+  submit("record-form");
+  await until(
+    () =>
+      !document.getElementById("dialog").open &&
+      !document.querySelector('[data-action="void-expense"]'),
+    "expense voided",
+  );
+  location.hash = "audit";
+  await until(
+    () =>
+      document.querySelector("main")?.textContent.includes("Tahsilat eklendi"),
+    "audit records",
+  );
+  pass("Tahsilat, gider, gider iptali ve işlem geçmişi");
   location.hash = "reports";
   await until(
     () => document.querySelector("main")?.textContent.includes("Test Danışman"),
     "reports",
   );
   pass("Dönemsel özet ve danışman faaliyet raporu");
+  if (process.env.CRM_VISUAL_DIR) {
+    document.getElementById("toasts").replaceChildren();
+    const views = await import(pathToFileURL(path.join(__dirname, "../public/js/views.js")));
+    fs.mkdirSync(process.env.CRM_VISUAL_DIR, { recursive: true });
+    for (const page of ["dashboard", "properties", "customers", "tasks", "inbox", "sales", "finance", "reports", "audit"]) {
+      state.page = page;
+      state.filters = {};
+      document.getElementById("root").innerHTML = views.shell();
+      document.getElementById("main").innerHTML = await views.renderers[page]();
+      const html = '<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="' +
+        pathToFileURL(path.join(__dirname, "../public/css/style.css")).href +
+        '"></head><body>' + document.body.innerHTML.replace(/<script[\s\S]*?<\/script>/g, "") + '</body></html>';
+      fs.writeFileSync(path.join(process.env.CRM_VISUAL_DIR, page + ".html"), html);
+    }
+  }
   click("logout");
   await until(() => document.getElementById("auth-form"), "logout");
   assert.equal(state.session, null);
